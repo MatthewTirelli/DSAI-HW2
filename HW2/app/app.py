@@ -1,0 +1,664 @@
+# app.py
+# High Risk Patient Identifier — clinical dashboard (Shiny).
+# Run from HW2:  shiny run app/app.py --reload
+
+from __future__ import annotations
+
+import sys
+from datetime import date, datetime, timedelta
+from pathlib import Path
+
+import markdown
+import pandas as pd
+import requests
+from htmltools import HTML, head_content, html_escape
+from shiny import App, reactive, render, ui
+
+APP_DIR = Path(__file__).resolve().parent
+HW2_ROOT = APP_DIR.parent
+if str(HW2_ROOT) not in sys.path:
+    sys.path.insert(0, str(HW2_ROOT))
+
+import clinical_pipeline as hw  # noqa: E402
+from functions import OLLAMA_HOST  # noqa: E402
+
+CSS_PATH = APP_DIR / "www" / "clinical.css"
+
+COHORT_COLS: list[str] = [
+    "patient_name",
+    "date_of_birth",
+    "visit_date",
+    "phq9_score",
+    "safety_concerns",
+    "diagnosis",
+    "provider",
+    "medications",
+    "patient_id",
+    "visit_id",
+]
+# PHQ-9 severity bands (cohort is already PHQ > 15, so scores start at 16).
+SEVERITY_CHOICES: dict[str, str] = {
+    "mod": "15–19 (Moderate)",
+    "sev": "20–24 (Severe)",
+    "vsev": "25+ (Very severe)",
+}
+SEVERITY_ALL: tuple[str, ...] = ("mod", "sev", "vsev")
+
+COHORT_LABELS: dict[str, str] = {
+    "patient_name": "Patient",
+    "date_of_birth": "Date of birth",
+    "visit_date": "Visit date",
+    "phq9_score": "PHQ-9",
+    "safety_concerns": "Safety",
+    "diagnosis": "Diagnosis",
+    "provider": "Provider",
+    "medications": "Medications",
+    "patient_id": "Patient ID",
+    "visit_id": "Visit ID",
+}
+
+
+def _ollama_ok(timeout: float = 2.0) -> bool:
+    try:
+        r = requests.get(f"{OLLAMA_HOST}/api/tags", timeout=timeout)
+        return r.ok
+    except OSError:
+        return False
+
+
+def _fmt_cell_display(col: str, val: object) -> str:
+    if val is None or (isinstance(val, float) and pd.isna(val)):
+        return ""
+    if isinstance(val, pd.Timestamp):
+        return val.strftime("%Y-%m-%d")
+    return str(val).strip()
+
+
+def _phq_badge_html(score: float | int | None) -> str:
+    if score is None or (isinstance(score, float) and pd.isna(score)):
+        return f'<span class="hrpi-badge hrpi-badge--phq-missing">{html_escape("—")}</span>'
+    try:
+        s = int(score)
+    except (TypeError, ValueError):
+        esc = html_escape(str(score))
+        return f'<span class="hrpi-badge hrpi-badge--phq-missing">{esc}</span>'
+    cls = "hrpi-badge hrpi-badge--phq-severe" if s >= 20 else "hrpi-badge hrpi-badge--phq-elevated"
+    return f'<span class="{cls}">{html_escape(str(s))}</span>'
+
+
+def cohort_table_html(df: pd.DataFrame) -> str:
+    cols = [c for c in COHORT_COLS if c in df.columns]
+    if not cols:
+        cols = list(df.columns)
+    headers = "".join(f"<th>{html_escape(COHORT_LABELS.get(c, c))}</th>" for c in cols)
+    rows_html: list[str] = []
+    for _, row in df.iterrows():
+        cells: list[str] = []
+        for c in cols:
+            raw = row.get(c)
+            if c == "patient_name":
+                text = html_escape(_fmt_cell_display(c, raw))
+                cells.append(f'<td class="hrpi-col-patient"><strong>{text}</strong></td>')
+            elif c == "date_of_birth":
+                text = html_escape(_fmt_cell_display(c, raw))
+                cells.append(f'<td class="hrpi-col-dob"><span class="hrpi-dob">{text}</span></td>')
+            elif c == "phq9_score":
+                cells.append(f"<td class=\"hrpi-col-phq\">{_phq_badge_html(raw)}</td>")
+            else:
+                cells.append(f"<td>{html_escape(_fmt_cell_display(c, raw))}</td>")
+        rows_html.append(f"<tr>{''.join(cells)}</tr>")
+    body = "".join(rows_html)
+    return (
+        f'<div class="hrpi-cohort-table-wrap"><table class="hrpi-cohort-table">'
+        f"<thead><tr>{headers}</tr></thead><tbody>{body}</tbody></table></div>"
+    )
+
+
+def _visits_accordion_title() -> ui.Tag:
+    return ui.div(
+        ui.div(
+            {"class": "hrpi-acc-title-lg"},
+            ui.tooltip(
+                ui.span(
+                    {
+                        "class": "hrpi-cohort-acc-title",
+                        "tabindex": "0",
+                        "role": "button",
+                    },
+                    "High-Risk Patient Visits ",
+                    ui.span({"class": "hrpi-criteria-glyph", "aria-hidden": "true"}, "ⓘ"),
+                ),
+                "PHQ-9 ≥ 15 and safety concern = Yes",
+                placement="top",
+            ),
+        ),
+        ui.div(
+            {"class": "hrpi-acc-sub"},
+            "Patients with elevated depression scores and safety concerns",
+        ),
+    )
+
+
+def _reference_end_date(df: pd.DataFrame | None) -> date:
+    """Anchor relative windows to the latest visit in the cohort (stable for static DBs)."""
+    if df is None or df.empty or "visit_date" not in df.columns:
+        return date.today()
+    mx = pd.to_datetime(df["visit_date"], errors="coerce").max()
+    if pd.isna(mx):
+        return date.today()
+    return mx.date()
+
+
+def _phq_severity_mask(s: pd.Series, bands: set[str]) -> pd.Series:
+    """Rows whose PHQ-9 falls in any selected band (16–19, 20–24, 25+)."""
+    m = pd.Series(False, index=s.index)
+    if "mod" in bands:
+        m |= (s >= 16) & (s <= 19)
+    if "sev" in bands:
+        m |= (s >= 20) & (s <= 24)
+    if "vsev" in bands:
+        m |= s >= 25
+    return m
+
+
+def _filter_chip(text: str, remove_input_id: str) -> ui.Tag:
+    return ui.span(
+        {"class": "hrpi-chip"},
+        ui.span({"class": "hrpi-chip-text"}, text),
+        ui.input_action_link(remove_input_id, "\u00d7", class_="btn btn-link p-0 border-0"),
+    )
+
+
+def _report_accordion_title() -> ui.Tag:
+    return ui.div(
+        ui.div({"class": "hrpi-acc-title-lg"}, "Clinical Summary Report"),
+        ui.div(
+            {"class": "hrpi-acc-sub"},
+            "Generated from cohort-level analysis",
+        ),
+    )
+
+
+app_ui = ui.page_fillable(
+    head_content(
+        ui.include_css(CSS_PATH),
+        ui.tags.link(
+            rel="stylesheet",
+            href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700&display=swap",
+        ),
+    ),
+    ui.div(
+        {"class": "hrpi-dashboard"},
+        ui.div(
+            {"class": "hrpi-dash-header"},
+            ui.div(
+                {"class": "hrpi-dash-brand"},
+                ui.h1({"class": "hrpi-dash-title"}, "High Risk Patient Identifier"),
+                ui.p(
+                    {"class": "hrpi-dash-tagline"},
+                    "Review high-risk visits and a concise clinical summary in one place.",
+                ),
+            ),
+            ui.output_ui("ai_status_badge"),
+        ),
+        ui.div(
+            {"class": "hrpi-hero-card"},
+            ui.p(
+                {"class": "hrpi-hero-lead"},
+                "Generate an up-to-date visit list and summary from the connected analysis service. "
+                "First run may take a few minutes while the model loads.",
+            ),
+            ui.input_action_button(
+                "run_pipeline",
+                "Generate clinical summary",
+                class_="btn-primary hrpi-btn-primary",
+            ),
+        ),
+        ui.output_ui("banner_messages"),
+        ui.accordion(
+            ui.accordion_panel(
+                ui.div(
+                    ui.div({"class": "hrpi-acc-title-lg"}, "Activity"),
+                    ui.div(
+                        {"class": "hrpi-acc-sub"},
+                        "Run status and last results",
+                    ),
+                ),
+                ui.output_ui("activity_body"),
+                value="activity",
+            ),
+            ui.accordion_panel(
+                _visits_accordion_title(),
+                ui.div(
+                    {"class": "hrpi-cohort-panel-inner"},
+                    ui.output_ui("cohort_summary"),
+                    ui.div(
+                        {"class": "hrpi-filter-bar"},
+                        ui.div(
+                            {"class": "hrpi-filter-item hrpi-filter-item--grow"},
+                            ui.input_text(
+                                "cohort_search",
+                                "Search",
+                                placeholder="Search patients...",
+                            ),
+                        ),
+                        ui.div(
+                            {"class": "hrpi-filter-item"},
+                            ui.input_select(
+                                "filter_date_preset",
+                                "Date",
+                                choices={
+                                    "all": "All dates",
+                                    "last7": "Last 7 days",
+                                    "last30": "Last 30 days",
+                                    "custom": "Custom range",
+                                },
+                                selected="all",
+                            ),
+                        ),
+                        ui.panel_conditional(
+                            "input.filter_date_preset == 'custom'",
+                            ui.div(
+                                {"class": "hrpi-filter-item hrpi-filter-item--date-custom"},
+                                ui.input_date_range(
+                                    "filter_visit_custom",
+                                    "Custom range",
+                                    start=date(2010, 1, 1),
+                                    end=date(2040, 12, 31),
+                                    min=date(1990, 1, 1),
+                                    max=date(2050, 12, 31),
+                                ),
+                            ),
+                        ),
+                        ui.div(
+                            {"class": "hrpi-filter-item"},
+                            ui.input_selectize(
+                                "filter_provider",
+                                "Provider",
+                                choices={"_": "Run analysis to load providers"},
+                                multiple=True,
+                                selected=[],
+                            ),
+                        ),
+                        ui.div(
+                            {"class": "hrpi-filter-item"},
+                            ui.input_selectize(
+                                "filter_phq_severity",
+                                "PHQ-9 severity",
+                                choices=SEVERITY_CHOICES,
+                                multiple=True,
+                                selected=list(SEVERITY_ALL),
+                            ),
+                        ),
+                    ),
+                    ui.output_ui("filter_chips"),
+                    ui.output_ui("cohort_table_ui"),
+                ),
+                value="visits",
+            ),
+            ui.accordion_panel(
+                _report_accordion_title(),
+                ui.div(
+                    ui.output_ui("report_context"),
+                    ui.output_ui("report_panel"),
+                ),
+                value="report",
+            ),
+            id="main_acc",
+            open=["activity", "visits", "report"],
+            multiple=True,
+            class_="hrpi-dash-accordion",
+        ),
+        ui.div(
+            {"class": "hrpi-dash-footer"},
+            "Synthetic educational data only — not for clinical use.",
+        ),
+    ),
+    title="High Risk Patient Identifier",
+    fillable=True,
+)
+
+
+def server(input, output, session):
+    cohort_df_rv = reactive.Value(None)
+    report_md_rv = reactive.Value("")
+    activity_rv = reactive.Value(
+        'Select "Generate clinical summary" when you are ready. '
+        "Ensure the local analysis service is running."
+    )
+    last_updated_rv = reactive.Value("")
+    last_metrics_rv = reactive.Value((0, 0, True))
+    running_rv = reactive.Value(False)
+    banner_error_rv = reactive.Value("")
+    ai_ok_rv = reactive.Value(None)
+
+    @reactive.effect
+    def _probe_ai_on_load():
+        ai_ok_rv.set(_ollama_ok())
+
+    @reactive.effect
+    @reactive.event(input.run_pipeline)
+    def _run_pipeline():
+        banner_error_rv.set("")
+        ai_ok_rv.set(_ollama_ok())
+        if not hw.DB_PATH.is_file():
+            banner_error_rv.set("Patient records file not found. Add it to this folder or set PATIENTS_DB.")
+            activity_rv.set("Cannot run — the patient database file is missing.")
+            return
+        running_rv.set(True)
+        activity_rv.set(
+            "Generating clinical summary…\n\n"
+            "Identifying high-risk visits and drafting the report. "
+            "This may take several minutes — please keep this tab open."
+        )
+        try:
+            result = hw.run_full_homework2_pipeline(log=None)
+            cohort_df_rv.set(result["cohort_df"])
+            report_md_rv.set(result["report_full"])
+            ok = result["verify_json"]["all_passed"]
+            n_visits = result["n_visits"]
+            n_patients = result["n_patients"]
+            last_updated_rv.set(datetime.now().strftime("%b %d, %Y"))
+            last_metrics_rv.set((n_visits, n_patients, ok))
+            qc = "Passed" if ok else "Review exported notes in the output folder"
+            activity_rv.set(
+                "Analysis complete.\n\n"
+                f"High-risk visits: {n_visits}\n"
+                f"Unique patients: {n_patients}\n"
+                f"Quality checks: {qc}"
+            )
+            df = result["cohort_df"]
+            if df is not None and not df.empty:
+                if "visit_date" in df.columns:
+                    vd = pd.to_datetime(df["visit_date"], errors="coerce")
+                    vmin, vmax = vd.min(), vd.max()
+                    if pd.notna(vmin) and pd.notna(vmax):
+                        ui.update_date_range(
+                            "filter_visit_custom",
+                            start=vmin.date(),
+                            end=vmax.date(),
+                        )
+                if "provider" in df.columns:
+                    provs = sorted(df["provider"].dropna().astype(str).unique())
+                    ui.update_selectize(
+                        "filter_provider",
+                        choices={p: p for p in provs},
+                        selected=[],
+                    )
+                ui.update_select("filter_date_preset", selected="all")
+                ui.update_selectize(
+                    "filter_phq_severity",
+                    choices=SEVERITY_CHOICES,
+                    selected=list(SEVERITY_ALL),
+                )
+        except Exception:
+            banner_error_rv.set("AI summary unavailable. Please try again.")
+            activity_rv.set(
+                "The summary could not be generated. "
+                "Confirm the analysis service is running, then try again."
+            )
+        finally:
+            running_rv.set(False)
+
+    @render.ui
+    def ai_status_badge():
+        ok = ai_ok_rv.get()
+        if ok is True:
+            return ui.span({"class": "hrpi-badge-ai hrpi-badge-ai--ok"}, "AI Connected")
+        if ok is False:
+            return ui.span({"class": "hrpi-badge-ai hrpi-badge-ai--bad"}, "AI Not Connected")
+        return ui.span({"class": "hrpi-badge-ai hrpi-badge-ai--unknown"}, "Checking…")
+
+    @render.ui
+    def banner_messages():
+        if running_rv.get():
+            return ui.div(
+                {"class": "hrpi-banner hrpi-banner--loading"},
+                "Generating clinical summary…",
+            )
+        err = banner_error_rv.get()
+        if err:
+            return ui.div({"class": "hrpi-banner hrpi-banner--error"}, err)
+        return ui.div()
+
+    @render.ui
+    def activity_body():
+        return ui.div({"class": "hrpi-activity-body"}, activity_rv.get())
+
+    def _as_str_tuple(val: object) -> tuple[str, ...]:
+        if val is None:
+            return ()
+        if isinstance(val, str):
+            return (val,)
+        return tuple(str(x) for x in val)
+
+    @reactive.effect
+    @reactive.event(input.filter_chip_rm_date)
+    def _chip_remove_date():
+        ui.update_select("filter_date_preset", selected="all")
+
+    @reactive.effect
+    @reactive.event(input.filter_chip_rm_search)
+    def _chip_remove_search():
+        ui.update_text("cohort_search", value="")
+
+    @reactive.effect
+    @reactive.event(input.filter_chip_rm_provider)
+    def _chip_remove_provider():
+        ui.update_selectize("filter_provider", selected=[])
+
+    @reactive.effect
+    @reactive.event(input.filter_chip_rm_severity)
+    def _chip_remove_severity():
+        ui.update_selectize("filter_phq_severity", selected=list(SEVERITY_ALL))
+
+    @reactive.effect
+    @reactive.event(input.filter_clear_all)
+    def _filter_clear_all():
+        ui.update_select("filter_date_preset", selected="all")
+        ui.update_text("cohort_search", value="")
+        ui.update_selectize("filter_provider", selected=[])
+        ui.update_selectize("filter_phq_severity", selected=list(SEVERITY_ALL))
+        df = cohort_df_rv.get()
+        if df is not None and not df.empty and "visit_date" in df.columns:
+            vd = pd.to_datetime(df["visit_date"], errors="coerce")
+            vmin, vmax = vd.min(), vd.max()
+            if pd.notna(vmin) and pd.notna(vmax):
+                ui.update_date_range(
+                    "filter_visit_custom",
+                    start=vmin.date(),
+                    end=vmax.date(),
+                )
+
+    @reactive.calc
+    def filtered_cohort() -> pd.DataFrame | None:
+        df = cohort_df_rv.get()
+        if df is None:
+            return None
+        out = df.copy()
+        anchor_df = df
+        if "visit_date" in out.columns:
+            out["_visit_dt"] = pd.to_datetime(out["visit_date"], errors="coerce")
+        preset = input.filter_date_preset()
+        if preset != "all" and "_visit_dt" in out.columns:
+            ref = _reference_end_date(anchor_df)
+            ref_ts = pd.Timestamp(ref)
+            if preset == "last7":
+                start_ts = ref_ts - timedelta(days=7)
+                m = out["_visit_dt"].between(start_ts, ref_ts, inclusive="both")
+                out = out.loc[m.fillna(False)]
+            elif preset == "last30":
+                start_ts = ref_ts - timedelta(days=30)
+                m = out["_visit_dt"].between(start_ts, ref_ts, inclusive="both")
+                out = out.loc[m.fillna(False)]
+            elif preset == "custom":
+                dr = input.filter_visit_custom()
+                if dr is not None:
+                    start_d, end_d = dr
+                    if start_d is not None and end_d is not None:
+                        start_ts = pd.Timestamp(start_d)
+                        end_ts = pd.Timestamp(end_d) + pd.Timedelta(days=1) - pd.Timedelta(
+                            microseconds=1
+                        )
+                        m = out["_visit_dt"].between(start_ts, end_ts, inclusive="both")
+                        out = out.loc[m.fillna(False)]
+        prov_sel = _as_str_tuple(input.filter_provider())
+        prov_sel = tuple(p for p in prov_sel if p != "_")
+        if prov_sel and "provider" in out.columns:
+            out = out.loc[out["provider"].astype(str).isin(prov_sel)]
+        sev_sel = _as_str_tuple(input.filter_phq_severity())
+        bands = {b for b in sev_sel if b in SEVERITY_ALL}
+        if not bands:
+            bands = set(SEVERITY_ALL)
+        if bands != set(SEVERITY_ALL) and "phq9_score" in out.columns:
+            s = pd.to_numeric(out["phq9_score"], errors="coerce")
+            out = out.loc[_phq_severity_mask(s, bands)]
+        q = (input.cohort_search() or "").strip().lower()
+        if q:
+            parts: list[pd.Series] = []
+            for c in out.columns:
+                if c.startswith("_"):
+                    continue
+                parts.append(out[c].apply(lambda v, col=c: _fmt_cell_display(col, v).lower()))
+            if parts:
+                mask = pd.concat(parts, axis=1).apply(
+                    lambda r: r.astype(str).str.contains(q, regex=False).any(), axis=1
+                )
+                out = out.loc[mask]
+        drop_cols = [c for c in out.columns if c.startswith("_")]
+        if drop_cols:
+            out = out.drop(columns=drop_cols)
+        return out
+
+    @render.ui
+    def filter_chips():
+        if cohort_df_rv.get() is None:
+            return ui.div()
+        chips: list[ui.Tag] = []
+        preset = input.filter_date_preset()
+        if preset == "last7":
+            chips.append(_filter_chip("Date: Last 7 days", "filter_chip_rm_date"))
+        elif preset == "last30":
+            chips.append(_filter_chip("Date: Last 30 days", "filter_chip_rm_date"))
+        elif preset == "custom":
+            dr = input.filter_visit_custom()
+            if dr is not None:
+                a, b = dr
+                if a is not None and b is not None:
+                    label = f"Date: {a} – {b}"
+                    chips.append(_filter_chip(label, "filter_chip_rm_date"))
+        q = (input.cohort_search() or "").strip()
+        if q:
+            disp = q if len(q) <= 40 else q[:37] + "..."
+            chips.append(_filter_chip(f'Search: "{disp}"', "filter_chip_rm_search"))
+        prov_sel = tuple(p for p in _as_str_tuple(input.filter_provider()) if p != "_")
+        if prov_sel:
+            if len(prov_sel) == 1:
+                ptxt = prov_sel[0]
+                if len(ptxt) > 32:
+                    ptxt = ptxt[:29] + "..."
+                chips.append(_filter_chip(f"Provider: {ptxt}", "filter_chip_rm_provider"))
+            else:
+                first = prov_sel[0]
+                if len(first) > 22:
+                    first = first[:19] + "..."
+                chips.append(
+                    _filter_chip(
+                        f"Provider: {first} +{len(prov_sel) - 1} more",
+                        "filter_chip_rm_provider",
+                    )
+                )
+        sev_sel = _as_str_tuple(input.filter_phq_severity())
+        band_set = {b for b in sev_sel if b in SEVERITY_ALL}
+        if not band_set:
+            band_set = set(SEVERITY_ALL)
+        if band_set != set(SEVERITY_ALL):
+            if band_set == {"mod"}:
+                sev_label = "Severity: 15–19 (Moderate)"
+            elif band_set == {"sev"}:
+                sev_label = "Severity: 20–24 (Severe)"
+            elif band_set == {"vsev"}:
+                sev_label = "Severity: 25+ (Very severe)"
+            elif band_set == {"sev", "vsev"}:
+                sev_label = "Severity: ≥20"
+            elif band_set == {"mod", "sev"}:
+                sev_label = "Severity: 15–24"
+            else:
+                sev_label = "Severity: " + ", ".join(
+                    SEVERITY_CHOICES[b] for b in ("mod", "sev", "vsev") if b in band_set
+                )
+            chips.append(_filter_chip(sev_label, "filter_chip_rm_severity"))
+        row_children: list[object] = list(chips)
+        if chips:
+            row_children.append(
+                ui.input_action_link(
+                    "filter_clear_all",
+                    "Clear all",
+                    class_="btn btn-link hrpi-clear-all",
+                )
+            )
+        return ui.div({"class": "hrpi-filter-chips"}, *row_children)
+
+    @render.ui
+    def cohort_summary():
+        base = cohort_df_rv.get()
+        if base is None:
+            return ui.div(
+                {"class": "hrpi-cohort-summary hrpi-cohort-summary--muted"},
+                "Generate a summary to load high-risk visits.",
+            )
+        fc = filtered_cohort()
+        assert fc is not None
+        n = len(fc)
+        n_all = len(base)
+        updated = last_updated_rv.get() or "—"
+        suffix = f" ({n} of {n_all} after filters)" if n != n_all else ""
+        return ui.div(
+            {"class": "hrpi-cohort-summary"},
+            ui.tags.strong(f"{n} high-risk visit{'s' if n != 1 else ''}"),
+            f" · Updated {updated}{suffix}",
+        )
+
+    @render.ui
+    def cohort_table_ui():
+        df = cohort_df_rv.get()
+        if df is None:
+            return ui.div(
+                {"class": "hrpi-cohort-empty"},
+                "Generate a summary to view the visit list.",
+            )
+        fc = filtered_cohort()
+        assert fc is not None
+        if fc.empty:
+            return ui.div(
+                {"class": "hrpi-cohort-empty"},
+                "No visits match your search or filters. Adjust the filter bar or use Clear all.",
+            )
+        return ui.div(HTML(cohort_table_html(fc)))
+
+    @render.ui
+    def report_context():
+        md = report_md_rv.get()
+        if not md:
+            return ui.div()
+        updated = last_updated_rv.get() or "—"
+        n_visits, n_patients, _ = last_metrics_rv.get()
+        return ui.div(
+            {"class": "hrpi-report-context"},
+            ui.tags.strong(f"{n_visits} high-risk visits"),
+            f" · {n_patients} patients · Updated {updated}",
+        )
+
+    @render.ui
+    def report_panel():
+        md = report_md_rv.get()
+        if not md:
+            return ui.div(
+                {"class": "hrpi-report-empty"},
+                "The clinical summary will appear here after you generate it.",
+            )
+        html = markdown.markdown(md, extensions=["tables", "fenced_code", "nl2br"])
+        return ui.div({"class": "hrpi-report-body"}, ui.HTML(html))
+
+
+app = App(app_ui, server)

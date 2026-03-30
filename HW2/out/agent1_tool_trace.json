@@ -1,0 +1,28 @@
+{
+  "model": "llama3.2",
+  "expected_tool": "list_phq9_elevated_with_safety_concerns",
+  "invocation_path": "native_tool_calls",
+  "tool_calls": [
+    {
+      "name": "list_phq9_elevated_with_safety_concerns",
+      "arguments": {},
+      "output_summary": {
+        "kind": "dataframe",
+        "rows": 40,
+        "columns": [
+          "patient_id",
+          "patient_name",
+          "date_of_birth",
+          "visit_id",
+          "visit_date",
+          "phq9_score",
+          "safety_concerns",
+          "diagnosis",
+          "provider",
+          "medications"
+        ]
+      }
+    }
+  ],
+  "assistant_content_preview": null
+}

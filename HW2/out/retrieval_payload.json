@@ -1,0 +1,728 @@
+{
+  "cohort_patient_ids": [
+    2,
+    3,
+    4,
+    11,
+    14,
+    16,
+    17,
+    24,
+    29,
+    30,
+    32,
+    37,
+    46,
+    47,
+    51,
+    54,
+    59,
+    60,
+    61,
+    64,
+    66,
+    71,
+    73,
+    75,
+    94,
+    98
+  ],
+  "lapsed_followup_threshold_days": 30,
+  "provider_concentration": {
+    "visit_counts_by_provider": [
+      {
+        "provider": "Dr. Chambers",
+        "visit_count": 2,
+        "distinct_patient_count": 2
+      },
+      {
+        "provider": "Dr. Martinez",
+        "visit_count": 2,
+        "distinct_patient_count": 2
+      },
+      {
+        "provider": "Dr. Moran",
+        "visit_count": 2,
+        "distinct_patient_count": 2
+      },
+      {
+        "provider": "Dr. Murphy",
+        "visit_count": 2,
+        "distinct_patient_count": 2
+      },
+      {
+        "provider": "Dr. Patel",
+        "visit_count": 2,
+        "distinct_patient_count": 2
+      },
+      {
+        "provider": "Dr. Perez",
+        "visit_count": 2,
+        "distinct_patient_count": 2
+      },
+      {
+        "provider": "Dr. Ramirez",
+        "visit_count": 2,
+        "distinct_patient_count": 2
+      },
+      {
+        "provider": "Dr. Rodriguez",
+        "visit_count": 2,
+        "distinct_patient_count": 2
+      },
+      {
+        "provider": "Dr. Aguilar",
+        "visit_count": 1,
+        "distinct_patient_count": 1
+      },
+      {
+        "provider": "Dr. Arellano",
+        "visit_count": 1,
+        "distinct_patient_count": 1
+      },
+      {
+        "provider": "Dr. Arnold",
+        "visit_count": 1,
+        "distinct_patient_count": 1
+      },
+      {
+        "provider": "Dr. Ayers",
+        "visit_count": 1,
+        "distinct_patient_count": 1
+      },
+      {
+        "provider": "Dr. Baker",
+        "visit_count": 1,
+        "distinct_patient_count": 1
+      },
+      {
+        "provider": "Dr. Barrera",
+        "visit_count": 1,
+        "distinct_patient_count": 1
+      },
+      {
+        "provider": "Dr. Barton",
+        "visit_count": 1,
+        "distinct_patient_count": 1
+      },
+      {
+        "provider": "Dr. Black",
+        "visit_count": 1,
+        "distinct_patient_count": 1
+      },
+      {
+        "provider": "Dr. Blair",
+        "visit_count": 1,
+        "distinct_patient_count": 1
+      },
+      {
+        "provider": "Dr. Bowers",
+        "visit_count": 1,
+        "distinct_patient_count": 1
+      },
+      {
+        "provider": "Dr. Brooks",
+        "visit_count": 1,
+        "distinct_patient_count": 1
+      },
+      {
+        "provider": "Dr. Brown",
+        "visit_count": 1,
+        "distinct_patient_count": 1
+      },
+      {
+        "provider": "Dr. Butler",
+        "visit_count": 1,
+        "distinct_patient_count": 1
+      },
+      {
+        "provider": "Dr. Caldwell",
+        "visit_count": 1,
+        "distinct_patient_count": 1
+      },
+      {
+        "provider": "Dr. Carter",
+        "visit_count": 1,
+        "distinct_patient_count": 1
+      },
+      {
+        "provider": "Dr. Castro",
+        "visit_count": 1,
+        "distinct_patient_count": 1
+      },
+      {
+        "provider": "Dr. Chen",
+        "visit_count": 1,
+        "distinct_patient_count": 1
+      },
+      {
+        "provider": "Dr. Cooley",
+        "visit_count": 1,
+        "distinct_patient_count": 1
+      },
+      {
+        "provider": "Dr. Cortez",
+        "visit_count": 1,
+        "distinct_patient_count": 1
+      },
+      {
+        "provider": "Dr. Davis",
+        "visit_count": 1,
+        "distinct_patient_count": 1
+      },
+      {
+        "provider": "Dr. Fox",
+        "visit_count": 1,
+        "distinct_patient_count": 1
+      },
+      {
+        "provider": "Dr. Fuller",
+        "visit_count": 1,
+        "distinct_patient_count": 1
+      },
+      {
+        "provider": "Dr. Garcia",
+        "visit_count": 1,
+        "distinct_patient_count": 1
+      },
+      {
+        "provider": "Dr. Gomez",
+        "visit_count": 1,
+        "distinct_patient_count": 1
+      },
+      {
+        "provider": "Dr. Gordon",
+        "visit_count": 1,
+        "distinct_patient_count": 1
+      },
+      {
+        "provider": "Dr. Grant",
+        "visit_count": 1,
+        "distinct_patient_count": 1
+      },
+      {
+        "provider": "Dr. Green",
+        "visit_count": 1,
+        "distinct_patient_count": 1
+      },
+      {
+        "provider": "Dr. Greer",
+        "visit_count": 1,
+        "distinct_patient_count": 1
+      },
+      {
+        "provider": "Dr. Guerrero",
+        "visit_count": 1,
+        "distinct_patient_count": 1
+      },
+      {
+        "provider": "Dr. Hall",
+        "visit_count": 1,
+        "distinct_patient_count": 1
+      },
+      {
+        "provider": "Dr. Hardin",
+        "visit_count": 1,
+        "distinct_patient_count": 1
+      },
+      {
+        "provider": "Dr. Henderson",
+        "visit_count": 1,
+        "distinct_patient_count": 1
+      },
+      {
+        "provider": "Dr. Herman",
+        "visit_count": 1,
+        "distinct_patient_count": 1
+      },
+      {
+        "provider": "Dr. Holder",
+        "visit_count": 1,
+        "distinct_patient_count": 1
+      },
+      {
+        "provider": "Dr. Holland",
+        "visit_count": 1,
+        "distinct_patient_count": 1
+      },
+      {
+        "provider": "Dr. Hopkins",
+        "visit_count": 1,
+        "distinct_patient_count": 1
+      },
+      {
+        "provider": "Dr. Hubbard",
+        "visit_count": 1,
+        "distinct_patient_count": 1
+      },
+      {
+        "provider": "Dr. Hudson",
+        "visit_count": 1,
+        "distinct_patient_count": 1
+      },
+      {
+        "provider": "Dr. Johnson",
+        "visit_count": 1,
+        "distinct_patient_count": 1
+      },
+      {
+        "provider": "Dr. Jones",
+        "visit_count": 1,
+        "distinct_patient_count": 1
+      },
+      {
+        "provider": "Dr. Kelly",
+        "visit_count": 1,
+        "distinct_patient_count": 1
+      },
+      {
+        "provider": "Dr. Le",
+        "visit_count": 1,
+        "distinct_patient_count": 1
+      },
+      {
+        "provider": "Dr. Lee",
+        "visit_count": 1,
+        "distinct_patient_count": 1
+      },
+      {
+        "provider": "Dr. Little",
+        "visit_count": 1,
+        "distinct_patient_count": 1
+      },
+      {
+        "provider": "Dr. Mccarthy",
+        "visit_count": 1,
+        "distinct_patient_count": 1
+      },
+      {
+        "provider": "Dr. Mcgrath",
+        "visit_count": 1,
+        "distinct_patient_count": 1
+      },
+      {
+        "provider": "Dr. Mckee",
+        "visit_count": 1,
+        "distinct_patient_count": 1
+      },
+      {
+        "provider": "Dr. Miller",
+        "visit_count": 1,
+        "distinct_patient_count": 1
+      },
+      {
+        "provider": "Dr. Mitchell",
+        "visit_count": 1,
+        "distinct_patient_count": 1
+      },
+      {
+        "provider": "Dr. Moreno",
+        "visit_count": 1,
+        "distinct_patient_count": 1
+      },
+      {
+        "provider": "Dr. Murillo",
+        "visit_count": 1,
+        "distinct_patient_count": 1
+      },
+      {
+        "provider": "Dr. Nguyen",
+        "visit_count": 1,
+        "distinct_patient_count": 1
+      },
+      {
+        "provider": "Dr. Olsen",
+        "visit_count": 1,
+        "distinct_patient_count": 1
+      },
+      {
+        "provider": "Dr. Ortiz",
+        "visit_count": 1,
+        "distinct_patient_count": 1
+      },
+      {
+        "provider": "Dr. Pittman",
+        "visit_count": 1,
+        "distinct_patient_count": 1
+      },
+      {
+        "provider": "Dr. Potts",
+        "visit_count": 1,
+        "distinct_patient_count": 1
+      },
+      {
+        "provider": "Dr. Powers",
+        "visit_count": 1,
+        "distinct_patient_count": 1
+      },
+      {
+        "provider": "Dr. Reyes",
+        "visit_count": 1,
+        "distinct_patient_count": 1
+      },
+      {
+        "provider": "Dr. Rivas",
+        "visit_count": 1,
+        "distinct_patient_count": 1
+      },
+      {
+        "provider": "Dr. Rosario",
+        "visit_count": 1,
+        "distinct_patient_count": 1
+      },
+      {
+        "provider": "Dr. Ruiz",
+        "visit_count": 1,
+        "distinct_patient_count": 1
+      },
+      {
+        "provider": "Dr. Sawyer",
+        "visit_count": 1,
+        "distinct_patient_count": 1
+      },
+      {
+        "provider": "Dr. Simmons",
+        "visit_count": 1,
+        "distinct_patient_count": 1
+      },
+      {
+        "provider": "Dr. Sims",
+        "visit_count": 1,
+        "distinct_patient_count": 1
+      },
+      {
+        "provider": "Dr. Stewart",
+        "visit_count": 1,
+        "distinct_patient_count": 1
+      },
+      {
+        "provider": "Dr. Taylor",
+        "visit_count": 1,
+        "distinct_patient_count": 1
+      },
+      {
+        "provider": "Dr. Terry",
+        "visit_count": 1,
+        "distinct_patient_count": 1
+      },
+      {
+        "provider": "Dr. Torres",
+        "visit_count": 1,
+        "distinct_patient_count": 1
+      },
+      {
+        "provider": "Dr. Trujillo",
+        "visit_count": 1,
+        "distinct_patient_count": 1
+      },
+      {
+        "provider": "Dr. Valenzuela",
+        "visit_count": 1,
+        "distinct_patient_count": 1
+      },
+      {
+        "provider": "Dr. Watson",
+        "visit_count": 1,
+        "distinct_patient_count": 1
+      },
+      {
+        "provider": "Dr. Wiley",
+        "visit_count": 1,
+        "distinct_patient_count": 1
+      },
+      {
+        "provider": "Dr. Williams",
+        "visit_count": 1,
+        "distinct_patient_count": 1
+      },
+      {
+        "provider": "Dr. Wilson",
+        "visit_count": 1,
+        "distinct_patient_count": 1
+      },
+      {
+        "provider": "Dr. Wright",
+        "visit_count": 1,
+        "distinct_patient_count": 1
+      },
+      {
+        "provider": "Dr. Yu",
+        "visit_count": 1,
+        "distinct_patient_count": 1
+      }
+    ],
+    "cohort_patient_count": 26,
+    "note": "Counts include all visits for cohort members (not only PHQ-9/safety-flag visits)."
+  },
+  "medications_summary": {
+    "top_medication_strings": [
+      {
+        "text": "None",
+        "visit_row_mentions": 23
+      },
+      {
+        "text": "Aripiprazole",
+        "visit_row_mentions": 17
+      },
+      {
+        "text": "Lamotrigine",
+        "visit_row_mentions": 16
+      },
+      {
+        "text": "Vyvanse",
+        "visit_row_mentions": 14
+      },
+      {
+        "text": "Fluoxetine",
+        "visit_row_mentions": 14
+      },
+      {
+        "text": "Lithium",
+        "visit_row_mentions": 13
+      },
+      {
+        "text": "Mirtazapine",
+        "visit_row_mentions": 12
+      },
+      {
+        "text": "Bupropion",
+        "visit_row_mentions": 11
+      },
+      {
+        "text": "Sertraline",
+        "visit_row_mentions": 10
+      },
+      {
+        "text": "Venlafaxine",
+        "visit_row_mentions": 9
+      },
+      {
+        "text": "Escitalopram",
+        "visit_row_mentions": 8
+      },
+      {
+        "text": "Quetiapine",
+        "visit_row_mentions": 8
+      },
+      {
+        "text": "Adderall",
+        "visit_row_mentions": 6
+      }
+    ],
+    "unique_token_count": 13,
+    "note": "Counts are mentions after naive splitting, not validated prescriptions."
+  },
+  "lapsed_followup": {
+    "retrieval_rows": [
+      {
+        "patient_id": 14,
+        "patient_name": "Morgan Livingston",
+        "last_visit_date": "2024-10-16",
+        "last_visit_diagnosis": "Social Anxiety Disorder",
+        "last_visit_provider": "Dr. Murphy",
+        "days_since_last_visit": 530
+      },
+      {
+        "patient_id": 32,
+        "patient_name": "Christian Cole",
+        "last_visit_date": "2025-04-19",
+        "last_visit_diagnosis": "Social Anxiety Disorder",
+        "last_visit_provider": "Dr. Cortez",
+        "days_since_last_visit": 345
+      },
+      {
+        "patient_id": 16,
+        "patient_name": "Gregory Robertson",
+        "last_visit_date": "2025-05-22",
+        "last_visit_diagnosis": "Panic Disorder",
+        "last_visit_provider": "Dr. Kelly",
+        "days_since_last_visit": 312
+      },
+      {
+        "patient_id": 64,
+        "patient_name": "Katherine Edwards",
+        "last_visit_date": "2025-06-23",
+        "last_visit_diagnosis": "Bipolar II Disorder",
+        "last_visit_provider": "Dr. Murillo",
+        "days_since_last_visit": 280
+      },
+      {
+        "patient_id": 94,
+        "patient_name": "Stephanie Dominguez",
+        "last_visit_date": "2025-06-27",
+        "last_visit_diagnosis": "Persistent Depressive Disorder",
+        "last_visit_provider": "Dr. Mccarthy",
+        "days_since_last_visit": 276
+      },
+      {
+        "patient_id": 17,
+        "patient_name": "Scott Meyer",
+        "last_visit_date": "2025-07-01",
+        "last_visit_diagnosis": "Bipolar II Disorder",
+        "last_visit_provider": "Dr. Yu",
+        "days_since_last_visit": 272
+      },
+      {
+        "patient_id": 2,
+        "patient_name": "Max Wilson",
+        "last_visit_date": "2025-07-27",
+        "last_visit_diagnosis": "Generalized Anxiety Disorder",
+        "last_visit_provider": "Dr. Brooks",
+        "days_since_last_visit": 246
+      },
+      {
+        "patient_id": 24,
+        "patient_name": "Danielle Ward",
+        "last_visit_date": "2025-09-09",
+        "last_visit_diagnosis": "Panic Disorder",
+        "last_visit_provider": "Dr. Hubbard",
+        "days_since_last_visit": 202
+      },
+      {
+        "patient_id": 11,
+        "patient_name": "Nicholas Kim",
+        "last_visit_date": "2025-10-04",
+        "last_visit_diagnosis": "Obsessive-Compulsive Disorder",
+        "last_visit_provider": "Dr. Le",
+        "days_since_last_visit": 177
+      },
+      {
+        "patient_id": 98,
+        "patient_name": "Hector Mccullough",
+        "last_visit_date": "2025-10-05",
+        "last_visit_diagnosis": "Bipolar II Disorder",
+        "last_visit_provider": "Dr. Sawyer",
+        "days_since_last_visit": 176
+      },
+      {
+        "patient_id": 30,
+        "patient_name": "Jeffrey Williams",
+        "last_visit_date": "2025-10-06",
+        "last_visit_diagnosis": "Obsessive-Compulsive Disorder",
+        "last_visit_provider": "Dr. Mcgrath",
+        "days_since_last_visit": 175
+      },
+      {
+        "patient_id": 37,
+        "patient_name": "Robert Hutchinson",
+        "last_visit_date": "2025-11-01",
+        "last_visit_diagnosis": "Social Anxiety Disorder",
+        "last_visit_provider": "Dr. Reyes",
+        "days_since_last_visit": 149
+      },
+      {
+        "patient_id": 51,
+        "patient_name": "Kevin Holmes",
+        "last_visit_date": "2025-11-16",
+        "last_visit_diagnosis": "ADHD",
+        "last_visit_provider": "Dr. Fuller",
+        "days_since_last_visit": 134
+      },
+      {
+        "patient_id": 71,
+        "patient_name": "John Molina",
+        "last_visit_date": "2025-12-04",
+        "last_visit_diagnosis": "Panic Disorder",
+        "last_visit_provider": "Dr. Carter",
+        "days_since_last_visit": 116
+      },
+      {
+        "patient_id": 46,
+        "patient_name": "Sharon Ramsey",
+        "last_visit_date": "2025-12-20",
+        "last_visit_diagnosis": "Social Anxiety Disorder",
+        "last_visit_provider": "Dr. Davis",
+        "days_since_last_visit": 100
+      },
+      {
+        "patient_id": 3,
+        "patient_name": "Richard Mcknight",
+        "last_visit_date": "2025-12-25",
+        "last_visit_diagnosis": "Social Anxiety Disorder",
+        "last_visit_provider": "Dr. Blair",
+        "days_since_last_visit": 95
+      },
+      {
+        "patient_id": 73,
+        "patient_name": "Angela Smith",
+        "last_visit_date": "2026-01-25",
+        "last_visit_diagnosis": "Major Depressive Disorder",
+        "last_visit_provider": "Dr. Patel",
+        "days_since_last_visit": 64
+      },
+      {
+        "patient_id": 59,
+        "patient_name": "Deborah Griffin",
+        "last_visit_date": "2026-01-29",
+        "last_visit_diagnosis": "Major Depressive Disorder",
+        "last_visit_provider": "Dr. Baker",
+        "days_since_last_visit": 60
+      },
+      {
+        "patient_id": 61,
+        "patient_name": "Marcus Perez",
+        "last_visit_date": "2026-02-02",
+        "last_visit_diagnosis": "Panic Disorder",
+        "last_visit_provider": "Dr. Murphy",
+        "days_since_last_visit": 56
+      },
+      {
+        "patient_id": 47,
+        "patient_name": "Amber Ferguson",
+        "last_visit_date": "2026-02-20",
+        "last_visit_diagnosis": "Obsessive-Compulsive Disorder",
+        "last_visit_provider": "Dr. Ramirez",
+        "days_since_last_visit": 38
+      },
+      {
+        "patient_id": 75,
+        "patient_name": "Daniel Smith",
+        "last_visit_date": "2026-02-23",
+        "last_visit_diagnosis": "Generalized Anxiety Disorder",
+        "last_visit_provider": "Dr. Holder",
+        "days_since_last_visit": 35
+      }
+    ],
+    "row_count": 21,
+    "summary_statistics": {
+      "patient_count": 21,
+      "mean_days_since_last_visit": 182.8,
+      "median_days_since_last_visit": 175.0,
+      "diagnosis_counts_at_last_visit": {
+        "Social Anxiety Disorder": 5,
+        "Panic Disorder": 4,
+        "Bipolar II Disorder": 3,
+        "Obsessive-Compulsive Disorder": 3,
+        "Generalized Anxiety Disorder": 2,
+        "Major Depressive Disorder": 2,
+        "Persistent Depressive Disorder": 1,
+        "ADHD": 1
+      },
+      "last_visit_provider_counts": {
+        "Dr. Murphy": 2,
+        "Dr. Cortez": 1,
+        "Dr. Kelly": 1,
+        "Dr. Murillo": 1,
+        "Dr. Mccarthy": 1,
+        "Dr. Yu": 1,
+        "Dr. Brooks": 1,
+        "Dr. Hubbard": 1,
+        "Dr. Le": 1,
+        "Dr. Sawyer": 1,
+        "Dr. Mcgrath": 1,
+        "Dr. Reyes": 1,
+        "Dr. Fuller": 1,
+        "Dr. Carter": 1,
+        "Dr. Davis": 1,
+        "Dr. Blair": 1,
+        "Dr. Patel": 1,
+        "Dr. Baker": 1,
+        "Dr. Ramirez": 1,
+        "Dr. Holder": 1
+      },
+      "all_lapsed_patients_share_same_last_provider": false,
+      "single_last_provider_name_if_applicable": null,
+      "note": "Days since last visit measure documentation gaps in this synthetic DB, not confirmed missed appointments."
+    }
+  }
+}

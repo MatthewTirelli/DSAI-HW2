@@ -1,0 +1,31 @@
+{
+  "generated_at_utc": "2026-03-30T20:43:47.653424+00:00",
+  "db_path": "/Users/mjt/Desktop/SYSEN/AIDATA/dsai/HW2/patients.db",
+  "lapsed_followup_threshold_days": 30,
+  "cohort_unique_patient_count": 26,
+  "sql_total_visits_for_cohort": 92,
+  "sum_visit_count_by_provider_rows": 92,
+  "checks": [
+    {
+      "name": "cohort_patient_ids_match_df",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "provider_concentration_cohort_patient_count",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "lapsed_row_count_matches_retrieval_rows",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "total_visits_sql_equals_sum_provider_visit_counts",
+      "passed": true,
+      "detail": null
+    }
+  ],
+  "all_passed": true
+}

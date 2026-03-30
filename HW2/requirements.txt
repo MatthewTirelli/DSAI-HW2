@@ -1,0 +1,9 @@
+# HW2 — Homework 2 runtime dependencies
+pandas>=2.0
+requests>=2.28
+tabulate>=0.9
+PyYAML>=6.0
+reportlab>=4.0
+# Optional: Shiny web UI (app/)
+shiny>=1.0
+markdown>=3.4
