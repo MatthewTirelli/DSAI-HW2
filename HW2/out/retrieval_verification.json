@@ -1,6 +1,6 @@
 {
-  "generated_at_utc": "2026-03-30T20:43:47.653424+00:00",
-  "db_path": "/Users/mjt/Desktop/SYSEN/AIDATA/dsai/HW2/patients.db",
+  "generated_at_utc": "2026-03-30T23:09:03.630858+00:00",
+  "db_path": "/Users/mjt/Desktop/DSAI-HW2/HW2/patients.db",
   "lapsed_followup_threshold_days": 30,
   "cohort_unique_patient_count": 26,
   "sql_total_visits_for_cohort": 92,

@@ -10,6 +10,41 @@ This package runs a **two-stage LLM workflow** over a local SQLite database ([`p
 
 3. **Agent 2 (RAG generation)** — The second call receives the cohort table (Markdown) and the retrieval JSON embedded in the user message and writes a **clinical Markdown report** grounded in that context only—**retrieve → augment prompt → generate**, i.e. a **RAG-style** call, with retrieval implemented as SQL/JSON rather than a vector index.
 
+### System architecture
+
+```mermaid
+flowchart TB
+  subgraph entry["Entry"]
+    Shiny["Shiny — app/app.py"]
+    CLI["CLI — clinical_pipeline.py"]
+  end
+
+  subgraph core["Orchestration"]
+    CP["clinical_pipeline.py<br/>run_full_homework2_pipeline"]
+    Fn["functions.py<br/>Ollama chat + tools"]
+    Ret["retrieval.py<br/>build_cohort_retrieval_payload"]
+    Rules["clinical_rag_rules.yaml"]
+  end
+
+  Ollama[("Ollama<br/>/api/chat")]
+  DB[("SQLite<br/>patients.db")]
+  Out["out/<br/>traces, JSON, report.md"]
+
+  Shiny --> CP
+  CLI --> CP
+
+  CP --> Fn
+  Fn <-->|"Agent 1 + 2"| Ollama
+  Fn -->|"tool: list_phq9_…"| DB
+
+  CP --> Ret
+  Ret -->|"SQL / pandas"| DB
+  Ret -->|"RAG JSON context"| CP
+
+  Rules --> CP
+  CP -->|"writes artifacts"| Out
+```
+
 **Primary way to run:** the **Shiny for Python** dashboard in [`app/app.py`](app/app.py). It calls [`clinical_pipeline.py`](clinical_pipeline.py) (`run_full_homework2_pipeline`) to execute the same steps and refreshes files under [`out/`](out/). For a non-UI run, use `python clinical_pipeline.py` from this folder (optional).
 
 ### Self-contained `HW2/` package

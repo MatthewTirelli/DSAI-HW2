@@ -4,7 +4,7 @@
 
 - **Model:** `llama3.2`
 - **Cohort function:** `list_phq9_elevated_with_safety_concerns`
-- **Database:** `/Users/mjt/Desktop/SYSEN/AIDATA/dsai/HW2/patients.db`
+- **Database:** `/Users/mjt/Desktop/DSAI-HW2/HW2/patients.db`
 - **Cohort rule:** PHQ-9 > 15 and `safety_concerns` = Y
 - **Execution trace:** `agent1_tool_trace.json`
 
