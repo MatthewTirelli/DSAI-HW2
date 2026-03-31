@@ -49,7 +49,7 @@ flowchart TB
 
 ### Self-contained `HW2/` package
 
-- **All runtime Python for this assignment lives in `HW2/`** — [`clinical_pipeline.py`](clinical_pipeline.py), [`functions.py`](functions.py), [`retrieval.py`](retrieval.py), [`app/app.py`](app/app.py), etc.You can copy or clone **only** the `HW2` directory, create a venv, install [`requirements.txt`](requirements.txt), add [`patients.db`](patients.db), and run.
+- **All runtime Python for this assignment lives in `HW2/`** — [`clinical_pipeline.py`](clinical_pipeline.py), [`functions.py`](functions.py), [`retrieval.py`](retrieval.py), [`app/app.py`](app/app.py), etc. You can copy or clone **only** the `HW2` directory, create a venv, install [`requirements.txt`](requirements.txt), add [`patients.db`](patients.db), and run.
 - **Data file:** [`patients.db`](patients.db) is expected next to this README unless you set **`PATIENTS_DB`** to an absolute path. If the DB is not in git, place a compatible `patients.db` here after clone (the install steps show one way to obtain it from elsewhere in the repo).
 - **Generated outputs:** [`out/`](out/) is created when you run the app or CLI. Those files are **artifacts**, not source; add `out/` to `.gitignore` if you do not want run outputs in version control.
 - **Not bundled in git:** **[Ollama](https://ollama.com)** and a pulled chat model (default **`llama3.2`**) — install locally, same as any other machine learning service.
@@ -62,6 +62,34 @@ flowchart TB
 - **RAG pipeline:** Cohort patient IDs → `build_cohort_retrieval_payload` → `retrieval_payload.json` → second prompt → narrative report.
 - **Verification files:** Tool trace, retrieval checks, and final report under [`out/`](out/) (see below).
 - **Dashboard:** [`app/app.py`](app/app.py) — cohort filters, report view, and one-button pipeline run.
+
+---
+
+## Agent 1 tool: `list_phq9_elevated_with_safety_concerns`
+
+This is the **only registered function-calling tool** for Agent 1. The model is expected to invoke it (native `tool_calls` or equivalent) so cohort selection is **grounded in SQL**, not free-form reasoning.
+
+### What it does
+
+| Aspect | Detail |
+|--------|--------|
+| **Purpose** | Return one row per **visit** in [`patients.db`](patients.db) where **PHQ-9 &gt; 15** (scores 16+) **and** `safety_concerns` is **Yes** (`Y` after trim/uppercase). |
+| **Definition** | Tool schema and handler live in [`clinical_pipeline.py`](clinical_pipeline.py) (`tool_list_phq9_safety`, function `list_phq9_elevated_with_safety_concerns`). Execution and Ollama round-trips are in [`functions.py`](functions.py). |
+| **Arguments** | Empty object `{}` — the implementation **always** reads [`patients.db`](patients.db) (or `PATIENTS_DB` if set); the model cannot point the tool at another path. |
+| **Query shape** | `visits` joined to `patients`, filtered and ordered by visit date (newest first). |
+
+**Columns in the tool result (per visit):** `patient_id`, `patient_name`, `date_of_birth`, `visit_id`, `visit_date`, `phq9_score`, `safety_concerns`, `diagnosis`, `provider`, `medications`.
+
+That table is the **cohort** for the rest of the pipeline: retrieval scopes to those patient/visit IDs, and Agent 2 sees the cohort (as Markdown) plus the retrieval JSON.
+
+### Where the tool’s outputs show up
+
+| Output | What it contains |
+|--------|------------------|
+| **In-memory** | A **pandas `DataFrame`** returned from `list_phq9_elevated_with_safety_concerns` and threaded through [`clinical_pipeline.py`](clinical_pipeline.py) as the cohort. |
+| [`out/agent1_tool_trace.json`](out/agent1_tool_trace.json) | **Audit trail** for Agent 1: whether `tool_calls` named **`list_phq9_elevated_with_safety_concerns`**, and a **summary** of the tool result (row/column counts). |
+| [`out/agent1_cohort_findings.md`](out/agent1_cohort_findings.md) | **Human-readable** run log: verification that the correct tool ran, plus the **full cohort table** (Markdown) produced from the DataFrame. |
+| Downstream | Cohort IDs drive [`out/retrieval_payload.json`](out/retrieval_payload.json) and the Agent 2 prompt; the final narrative is [`out/homework2_comprehensive_report.md`](out/homework2_comprehensive_report.md). |
 
 ---
 
