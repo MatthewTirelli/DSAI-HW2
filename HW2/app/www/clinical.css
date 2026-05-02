@@ -103,6 +103,24 @@ body.bslib-page-fill {
   max-width: 48rem;
 }
 
+.hrpi-setup-hint {
+  font-size: 0.95rem;
+  color: var(--hrpi-text-muted);
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 0.5rem;
+  padding: 0.65rem 0.85rem;
+  margin: -0.5rem 0 1rem 0;
+  max-width: 48rem;
+}
+
+.hrpi-qc-intro {
+  font-size: 0.95rem;
+  color: var(--hrpi-text-muted);
+  margin: 0 0 1rem 0;
+  line-height: 1.5;
+}
+
 .hrpi-btn-primary {
   font-size: 1.05rem !important;
   font-weight: 600 !important;
@@ -479,6 +497,12 @@ body.bslib-page-fill {
   background: #f9fafb;
   border-radius: 0.5rem;
   border: 1px dashed var(--hrpi-border);
+}
+
+.hrpi-live-validation-wrap {
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--hrpi-border);
 }
 
 .hrpi-dash-footer {

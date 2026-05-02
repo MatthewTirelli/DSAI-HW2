@@ -1,9 +1,30 @@
-# HW2 — Homework 2 runtime dependencies
-pandas>=2.0
-requests>=2.28
-tabulate>=0.9
-PyYAML>=6.0
-reportlab>=4.0
-# Optional: Shiny web UI (app/)
-shiny>=1.0
-markdown>=3.4
+# -----------------------------------------------------------------------------
+# HW2 — runtime dependencies for local use and Posit / Systems Connect
+#
+# Intended Python: 3.10–3.12 (see `.python-version` — must match Connect’s registered runtimes).
+# Install: pip install -r requirements.txt
+# -----------------------------------------------------------------------------
+
+pandas>=2.0.3,<3
+numpy>=1.26.0,<3
+
+requests>=2.31.0,<3
+
+# Config + YAML rules
+PyYAML>=6.0.1,<7
+python-dotenv>=1.0.1,<2
+
+# LLM API
+openai>=1.40.0,<2
+
+# Shiny dashboard (installs htmltools, starlette, etc. transitively)
+shiny>=1.0.0,<2
+
+# Report rendering inside the UI
+markdown>=3.5.0,<4
+
+# DataFrame Markdown tables in tools / pipeline
+tabulate>=0.9.0,<1
+
+# McNemar helper in qc/statistical_analysis (falls back if missing — keep for reproducibility)
+statsmodels>=0.14.0,<1

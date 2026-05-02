@@ -1,11 +1,12 @@
 {
-  "model": "llama3.2",
+  "model": "gpt-4o-mini",
+  "llm_backend": "openai",
   "expected_tool": "list_phq9_elevated_with_safety_concerns",
   "invocation_path": "native_tool_calls",
   "tool_calls": [
     {
       "name": "list_phq9_elevated_with_safety_concerns",
-      "arguments": {},
+      "arguments": "{}",
       "output_summary": {
         "kind": "dataframe",
         "rows": 40,

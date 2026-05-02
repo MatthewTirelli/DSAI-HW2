@@ -1,3 +1,15 @@
+# HW2/out/ holds qc_results.csv, qc_summary.md, reports — intentionally
+# tracked for assignments; do not add a blanket `out/` or `**/out/` rule without negations.
+
 .DS_Store
+# Leftover unzip / scratch dirs
+HW2/tmp_app_extract/
+
+# Posit rsconnect-python local deployment metadata (machine-specific)
+HW2/rsconnect-python/
+
 **/.venv/
 **/__pycache__/
+.env
+**/.env
+!.env.example

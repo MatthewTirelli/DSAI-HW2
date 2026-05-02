@@ -1,0 +1,86 @@
+trial_id,mode,runtime_s,dominant_confidence_label,dominant_confidence_score,report_text,required_sections_rate,numeric_accuracy_rate,numeric_accuracy_score,patient_count_match,visit_count_match,lapsed_followup_match,patient_count_match_rate,visit_count_match_rate,provider_count_match_rate,lapsed_followup_match_rate,expected_patient_count,reported_patient_count,expected_visit_count,reported_visit_count,expected_lapsed_followup,reported_lapsed_followup,numeric_mismatch_flags,retrieval_check_disclosure_rate,extra_number_count_raw,clinically_unsupported_number_count,hallucinated_number_count,allowed_numbers,raw_extra_numbers,clinically_unsupported_numbers,clinically_unsupported_number_context,unsupported_patient_identifier_count,unsupported_provider_count,limitation_disclosure_rate,medication_theme_mention_rate,hallucinated_state_count,confidence_label_match_rate,low_confidence_disclosure_rate,confidence_score_match_rate,unsupported_confidence_claim_count,confidence_misuse,validity_score_0_100,passed_absolute_validity,unsupported_claims,missing_required_elements,grader_payload
+0,baseline,6.85481595993042,neutral,,"# Executive Summary of High-Risk Patient Cohort Findings
+
+## Overall Patterns in the Cohort
+The cohort consists of 26 patients identified as high-risk based on recent screening scores and safety indicators. The majority of patients exhibit elevated PHQ-9 scores, indicating significant depressive symptoms, with scores generally ranging from 20 to 27. Diagnoses within this group are diverse, including Generalized Anxiety Disorder, Major Depressive Disorder, Bipolar II Disorder, and various anxiety disorders. Notably, a significant portion of the cohort has documented safety concerns, underscoring the need for close monitoring and intervention.
+
+## Provider Involvement and Access Trends
+A wide range of providers are involved in the care of these patients, with several providers seeing multiple patients. Dr. Murphy, Dr. Cortez, and Dr. Kelly are among those with the highest visit counts, indicating a concentration of care among a few providers. However, many providers have only seen one patient from this cohort, suggesting potential gaps in continuity of care. The diversity of providers may lead to inconsistencies in treatment approaches and follow-up.
+
+## Medication and Documentation Themes
+The cohort exhibits a varied medication profile, with notable mentions of medications such as Aripiprazole, Lamotrigine, and Fluoxetine. A significant number of patients are on no medications, which raises questions about treatment adherence and the appropriateness of care plans. The presence of multiple medications among some patients indicates a complex treatment landscape, necessitating careful management to avoid adverse effects and ensure efficacy.
+
+## Notable Concerns Related to Follow-Up or Care Continuity
+A concerning trend is the presence of lapsed follow-up among several patients, with some having not been seen for over 500 days. This lack of follow-up poses risks for worsening mental health conditions and potential crises. The mean days since the last visit for the cohort is approximately 185 days, indicating a substantial gap in care continuity. Additionally, the fact that not all patients share the same last provider complicates the continuity of care, potentially leading to fragmented treatment experiences.
+
+## Conclusion
+The findings highlight critical areas for improvement in managing this high-risk patient cohort. Enhanced coordination among providers, regular follow-up, and a review of medication management strategies are essential to improve patient outcomes and ensure continuity of care. Addressing these issues will be vital in mitigating risks associated with high PHQ-9 scores and safety concerns.",0.0,0.756,0.756,1.0,0.55,1.0,1.0,0.55,0.0,1.0,26,26,40,-1,26,26,"[""visit_count_missing_weak_echo""]",0.0,5.0,0.0,5.0,"[1, 2, 3, 4, 11, 14, 16, 17, 24, 26, 29, 30, 32, 37, 40, 46, 47, 51, 54, 59, 60, 61, 64, 66, 71, 73, 75, 94, 98]","[9, 20, 27, 185, 500]",[],[],0.0,0.0,0.0,0.375,0.0,1.0,1.0,1.0,0.0,[],50.95,False,[],[],
+0,grounded,24.16328191757202,neutral,,"## Executive summary
+- total visits: 40
+- total patients: 26
+- lapsed follow-up count: 26
+
+## Cohort overview
+The cohort consists of 26 patients who have had a total of 40 visits. Each patient has been diagnosed with various mental health conditions, including anxiety disorders, depressive disorders, and obsessive-compulsive disorder.
+
+## Provider and access patterns
+The visits were distributed among multiple providers, with the following notable counts:
+- Dr. Murphy: 2 visits
+- Dr. Cortez: 1 visit
+- Dr. Kelly: 1 visit
+- Dr. Mccarthy: 1 visit
+- Dr. Yu: 1 visit
+- Dr. Brooks: 1 visit
+- Dr. Hubbard: 1 visit
+- Dr. Le: 1 visit
+- Dr. Sawyer: 1 visit
+- Dr. Mcgrath: 1 visit
+- Dr. Reyes: 1 visit
+- Dr. Fuller: 1 visit
+- Dr. Carter: 1 visit
+- Dr. Davis: 1 visit
+- Dr. Blair: 1 visit
+- Dr. Patel: 1 visit
+- Dr. Baker: 1 visit
+- Dr. Ramirez: 1 visit
+- Dr. Holder: 1 visit
+- Dr. Moran: 1 visit
+- Dr. Henderson: 1 visit
+- Dr. Castro: 1 visit
+- Dr. Bowers: 1 visit
+- Dr. Ayers: 1 visit
+
+## Medication and documentation themes
+The most frequently mentioned medications in the cohort include:
+- None: 23 mentions
+- Aripiprazole: 17 mentions
+- Lamotrigine: 16 mentions
+- Vyvanse: 14 mentions
+- Fluoxetine: 14 mentions
+- Lithium: 13 mentions
+- Mirtazapine: 12 mentions
+- Bupropion: 11 mentions
+- Sertraline: 10 mentions
+- Venlafaxine: 9 mentions
+- Escitalopram: 8 mentions
+- Quetiapine: 8 mentions
+- Adderall: 6 mentions
+
+## Lapsed follow-up and care continuity
+The cohort has a total of 26 patients who have lapsed follow-up, with the following notable details:
+- Patients have not visited for significant periods, with the longest being 563 days since their last visit.
+- Diagnoses at the last visit include Social Anxiety Disorder, Bipolar II Disorder, and Major Depressive Disorder, among others.
+
+## Data reliability and QC notes
+- cohort_patient_ids_match_df: PASS
+- provider_concentration_cohort_patient_count: PASS
+- lapsed_row_count_matches_retrieval_rows: PASS
+- total_visits_sql_equals_sum_provider_visit_counts: PASS
+
+This report is based on synthetic educational data and does not reflect clinically validated diagnostics.
+
+## Limitations
+- No individual diagnosis or treatment inference can be made from this data.
+- The dataset is synthetic and has inherent limits.
+- Medication extraction from prose is heuristic and not validated.
+- This report provides administrative context only and does not constitute individualized medical advice.",1.0,0.9285714285714286,0.9285714285714286,1.0,1.0,1.0,1.0,1.0,0.2857142857142857,1.0,26,26,40,40,26,26,[],1.0,8.0,0.0,8.0,"[1, 2, 3, 4, 11, 14, 16, 17, 24, 26, 29, 30, 32, 37, 40, 46, 47, 51, 54, 59, 60, 61, 64, 66, 71, 73, 75, 94, 98]","[6, 8, 9, 10, 12, 13, 23, 563]",[],[],0.0,0.0,1.0,1.0,0.0,1.0,1.0,1.0,0.0,[],92.96,True,[],[],

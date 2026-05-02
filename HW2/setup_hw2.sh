@@ -1,31 +1,14 @@
 #!/usr/bin/env bash
-# Pull the Ollama model used by Homework 2 (default: llama3.2).
-# Run from anywhere:  bash HW2/setup_hw2.sh   OR   cd HW2 && ./setup_hw2.sh
-#
-# Override model:  OLLAMA_MODEL=llama3.2:latest ./setup_hw2.sh
-
+# HW2 historically used local model runners — this bundle now relies on OpenAI.
+# Configure secrets in `.env` at the repository ROOT (parent of this folder), or in HW2/.env — see HW2/dotenv_loader.py.
 set -euo pipefail
 
-HW2_DIR="$(cd "$(dirname "$0")" && pwd)"
-cd "$HW2_DIR"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
-MODEL="${OLLAMA_MODEL:-llama3.2}"
-
-if ! command -v ollama >/dev/null 2>&1; then
-  echo "Error: 'ollama' not found. Install from https://ollama.com and ensure it is on your PATH."
-  exit 1
-fi
-
-echo "Homework 2 — pulling Ollama model: ${MODEL}"
-echo "(Set OLLAMA_MODEL to use a different tag; clinical_pipeline.py reads the same env var.)"
-ollama pull "${MODEL}"
-
-echo ""
-echo "OK — model pulled. Next steps:"
-echo "  1. cd \"${HW2_DIR}\""
-echo "  2. python3 -m venv .venv && source .venv/bin/activate   # Windows: .venv\\Scripts\\activate"
-echo "  3. pip install -r requirements.txt"
-echo "  4. shiny run app/app.py --reload   # or: python clinical_pipeline.py"
-echo ""
-echo "Optional: ensure patients.db exists (see README). Quick check:"
-echo "  curl -s http://127.0.0.1:11434/api/tags | head -c 200"
+echo "Homework 2 — OpenAI-based pipeline"
+echo "  cp \"${REPO_ROOT}/.env.example\" \"${REPO_ROOT}/.env\""
+echo "  Edit .env at repo root and set OPENAI_API_KEY=..."
+echo "  optional: OPENAI_MODEL=gpt-4o-mini in that same file"
+echo "Install Python deps: cd \"${SCRIPT_DIR}\" && pip install -r requirements.txt"
+exit 0

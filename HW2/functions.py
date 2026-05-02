@@ -1,61 +1,53 @@
 # functions.py
-# Homework 2 — Ollama chat + tool execution helpers (self-contained in HW2/)
-# Adapted from 07_rag/LabHW2/functions.py
-# Tim Fraser (course pattern)
+# Homework 2 — OpenAI chat + tool execution helpers (self-contained in HW2/)
 
-# Provides agent(), agent_run(), and df_as_text() for Ollama chat + tool execution.
-# Tool implementations live in the caller script; this module dispatches by function name.
-
-# 0. SETUP ###################################
-
-## 0.1 Load Packages #################################
+from __future__ import annotations
 
 import inspect
-import json  # for working with JSON
+import json
 import os
 import re
 from pathlib import Path
 
-import pandas as pd  # for data manipulation
-import requests  # for HTTP requests
+import pandas as pd
+from dotenv_loader import load_hw2_dotenv
+from openai import OpenAI
 
-# pip install requests pandas tabulate  # tabulate: used by DataFrame.to_markdown
+# pip install tabulate  # used by DataFrame.to_markdown
 
-## 0.2 Configuration #################################
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+_HW2_DIR = Path(__file__).resolve().parent
 
-# Canonical default for this assignment; override: export OLLAMA_MODEL=llama3.2:latest
-DEFAULT_MODEL = os.environ.get("OLLAMA_MODEL", "llama3.2")
-_ollama_port = os.environ.get("OLLAMA_PORT", "11434")
-OLLAMA_HOST = os.environ.get("OLLAMA_HOST", f"http://127.0.0.1:{_ollama_port}").rstrip("/")
-CHAT_URL = f"{OLLAMA_HOST}/api/chat"
-
-# Fail fast if Ollama is down; allow long generation for slow models
-REQUEST_TIMEOUT = (10, 600)
+load_hw2_dotenv()
 
 
-def _post_chat(body):
-    """POST to Ollama /api/chat with timeout; raise RuntimeError if unreachable."""
-    try:
-        return requests.post(CHAT_URL, json=body, timeout=REQUEST_TIMEOUT)
-    except requests.exceptions.ConnectionError as e:
-        raise RuntimeError(
-            f"Cannot connect to Ollama at {OLLAMA_HOST}. "
-            "Start it (e.g. run `ollama serve` in a terminal) and ensure the model is pulled."
-        ) from e
-    except requests.exceptions.Timeout as e:
-        raise RuntimeError(
-            "Ollama request timed out. The model may be loading or overloaded; try again."
-        ) from e
+def _dotenv_help() -> str:
+    return (
+        "Set OPENAI_API_KEY in the repository root `.env` file "
+        f"(recommended: `{_REPO_ROOT / '.env'}`) "
+        f"or in `{_HW2_DIR / '.env'}`. "
+        "Alternatively export OPENAI_API_KEY in your shell."
+    )
+
+
+def _default_model_value() -> str:
+    return os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
+
+
+# clinical_pipeline imports DEFAULT_MODEL — resolved after dotenv load
+DEFAULT_MODEL = _default_model_value()
+
+
+def _get_client() -> OpenAI:
+    if not (os.environ.get("OPENAI_API_KEY") or "").strip():
+        raise RuntimeError("OPENAI_API_KEY is not set. " + _dotenv_help())
+    return OpenAI()
 
 
 _FUNCTIONS_FILE = Path(__file__).resolve()
 
 
 def _globals_for_tool_dispatch():
-    """
-    Tool callables live in the *script that called agent_run*, not in this module.
-    Walk the stack until we leave functions.py so tool lookup succeeds.
-    """
     frame = inspect.currentframe().f_back
     while frame is not None:
         gpath = frame.f_globals.get("__file__")
@@ -112,10 +104,6 @@ def _normalize_embedded_tool_params(raw):
 
 
 def _recover_tool_output_from_text_content(content, tools, caller_globals):
-    """
-    Some models return JSON-shaped tool text in message.content instead of tool_calls.
-    If it matches a registered tool name, run it.
-    """
     if not (content and tools):
         return None
 
@@ -173,120 +161,115 @@ def _recover_tool_output_from_text_content(content, tools, caller_globals):
     return (target_name, out)
 
 
-def _raise_ollama_ok(response):
-    """Turn HTTP errors into actionable messages (404 usually = wrong service on port)."""
-    if response.ok:
-        return
-    snippet = (response.text or "")[:500]
-    if response.status_code == 404:
-        raise RuntimeError(
-            f"HTTP 404 from {response.url}\n"
-            "That almost always means nothing at this address is serving Ollama's API "
-            "(another app may be using the port, or OLLAMA_HOST is wrong).\n"
-            f"Response body (truncated): {snippet!r}\n\n"
-            "Checks:\n"
-            f"  curl {OLLAMA_HOST}/api/tags\n"
-            "  (should return JSON listing models when Ollama is running)\n"
-            "  lsof -i :11434   # see which process owns the port (macOS/Linux)\n\n"
-            "If Ollama uses a different URL, set e.g.:\n"
-            "  export OLLAMA_HOST=http://127.0.0.1:11434"
+def _build_assistant_message_from_openai(completion):
+    msg = completion.choices[0].message
+    out = {"role": "assistant", "content": msg.content or ""}
+    tcs = msg.tool_calls or []
+    if not tcs:
+        return out
+    serial = []
+    for tc in tcs:
+        fn = tc.function
+        serial.append(
+            {
+                "id": getattr(tc, "id", ""),
+                "type": "function",
+                "function": {"name": fn.name, "arguments": fn.arguments or "{}"},
+            }
         )
-    response.raise_for_status()
-
-
-# 1. AGENT FUNCTION ###################################
+    out["tool_calls"] = serial
+    return out
 
 
 def agent(
     messages,
-    model=DEFAULT_MODEL,
+    model=None,
     output="text",
     tools=None,
     all=False,
     tool_choice="required",
+    seed=None,
 ):
     """
-    Single Ollama chat turn, with or without tools.
+    Single OpenAI chat completion; executes tool handlers when tool_calls present.
     """
+    if model is None:
+        model = DEFAULT_MODEL
+
+    client = _get_client()
+
     if tools is None:
-        body = {
-            "model": model,
-            "messages": messages,
-            "stream": False,
-            "options": {"num_predict": 2048},
-        }
+        plain_kw: dict = dict(model=model, messages=messages, temperature=0.2)
+        if seed is not None:
+            plain_kw["seed"] = int(seed)
+        completion = client.chat.completions.create(**plain_kw)
+        txt = completion.choices[0].message.content or ""
+        if all:
+            return {"message": {"role": "assistant", "content": txt, "tool_calls": []}}
+        return txt
 
-        response = _post_chat(body)
-        _raise_ollama_ok(response)
-        result = response.json()
-
-        return result["message"]["content"]
-
-    body = {
-        "model": model,
-        "messages": messages,
-        "tools": tools,
-        "stream": False,
-    }
+    kwargs = dict(model=model, messages=messages, tools=tools, temperature=0.2)
     if tool_choice is not None:
-        body["tool_choice"] = tool_choice
+        kwargs["tool_choice"] = tool_choice
+    if seed is not None:
+        kwargs["seed"] = int(seed)
 
-    response = _post_chat(body)
-    _raise_ollama_ok(response)
-    result = response.json()
+    completion = client.chat.completions.create(**kwargs)
 
-    msg = result.get("message") or {}
-    tool_calls = msg.get("tool_calls") or []
+    assistant_msg = _build_assistant_message_from_openai(completion)
+    tool_calls_serial = assistant_msg.get("tool_calls") or []
 
-    if tool_calls:
+    if tool_calls_serial:
         caller_globals = _globals_for_tool_dispatch()
-        for tool_call in tool_calls:
-            fn_block = tool_call.get("function") or {}
-            func_name = fn_block.get("name") or tool_call.get("name")
+        for tc in tool_calls_serial:
+            fn_block = tc.get("function") or {}
+            func_name = fn_block.get("name")
             raw_args = fn_block.get("arguments", {})
             func_args = _parse_tool_arguments(raw_args)
-
             func = _resolve_tool_function(caller_globals, func_name)
             if func is None:
                 raise RuntimeError(
                     f"Model requested unknown tool {func_name!r}. "
-                    "Define a same-named function in the script that calls agent_run()."
+                    "Define a same-named function in the script that calls agent()."
                 )
             tool_result = func(**func_args)
-            tool_call["output"] = tool_result
+            tc["output"] = tool_result
+
+    msg_wrap = assistant_msg if tool_calls_serial else {"role": "assistant", "content": assistant_msg.get("content") or "", "tool_calls": []}
 
     if all:
-        return result
+        return {"message": msg_wrap}
 
-    if tool_calls:
+    if tool_calls_serial:
         if output == "tools":
-            return tool_calls
-        last_out = tool_calls[-1].get("output")
+            return tool_calls_serial
+        last_out = tool_calls_serial[-1].get("output")
         if last_out is not None:
             return last_out
-        return msg.get("content") or ""
+        return msg_wrap.get("content") or ""
 
+    # No native tool_calls — try recover from prose
+    content = assistant_msg.get("content") or ""
     if tools:
         caller_globals = _globals_for_tool_dispatch()
-        recovered = _recover_tool_output_from_text_content(msg.get("content") or "", tools, caller_globals)
+        recovered = _recover_tool_output_from_text_content(content, tools, caller_globals)
         if recovered is not None:
             rname, rval = recovered
-            synthetic_call = {
-                "function": {"name": rname, "arguments": "{}"},
-                "output": rval,
-            }
-            # all=True: return full Ollama-shaped result so callers can trace tool execution
-            # even when the model put JSON in .content instead of native tool_calls.
+            synthetic_call = {"function": {"name": rname, "arguments": "{}"}, "output": rval}
             if all:
-                msg2 = result.setdefault("message", {})
-                msg2["tool_calls"] = [synthetic_call]
-                msg2["_tool_recovery_from_content"] = True
-                return result
+                return {
+                    "message": {
+                        "role": "assistant",
+                        "content": content,
+                        "tool_calls": [synthetic_call],
+                        "_tool_recovery_from_content": True,
+                    }
+                }
             if output == "tools":
                 return [synthetic_call]
             return rval
 
-    return msg.get("content") or ""
+    return content
 
 
 def agent_run(
@@ -294,39 +277,40 @@ def agent_run(
     task,
     tools=None,
     output="text",
-    model=DEFAULT_MODEL,
+    model=None,
     tool_choice="required",
+    seed=None,
 ):
-    """
-    Run one agent turn: system role + user task.
-    """
+    if model is None:
+        model = DEFAULT_MODEL
     messages = [
         {"role": "system", "content": role},
         {"role": "user", "content": task},
     ]
 
     if tools is None:
-        resp = agent(
+        return agent(
             messages=messages,
             model=model,
             output=output,
             tools=None,
+            seed=seed,
         )
-    else:
-        resp = agent(
-            messages=messages,
-            model=model,
-            output=output,
-            tools=tools,
-            tool_choice=tool_choice,
-        )
-    return resp
 
-
-# 2. DATA CONVERSION FUNCTION ###################################
+    return agent(
+        messages=messages,
+        model=model,
+        output=output,
+        tools=tools,
+        tool_choice=tool_choice,
+        seed=seed,
+    )
 
 
 def df_as_text(df):
     """Convert a pandas DataFrame to a markdown table string."""
-    tab = df.to_markdown(index=False)
-    return tab
+    return df.to_markdown(index=False)
+
+
+def openai_api_configured() -> bool:
+    return bool((os.environ.get("OPENAI_API_KEY") or "").strip())

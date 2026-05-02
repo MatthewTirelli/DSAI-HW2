@@ -2,7 +2,8 @@
 
 ## Run metadata
 
-- **Model:** `llama3.2`
+- **Model:** `gpt-4o-mini`
+- **Backend:** OpenAI Chat Completions
 - **Cohort function:** `list_phq9_elevated_with_safety_concerns`
 - **Database:** `/Users/mjt/Desktop/DSAI-HW2/HW2/patients.db`
 - **Cohort rule:** PHQ-9 > 15 and `safety_concerns` = Y

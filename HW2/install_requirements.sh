@@ -18,3 +18,4 @@ echo "Installing packages from requirements.txt"
 
 echo ""
 echo "Done. Activate with:  source \"${HW2_DIR}/.venv/bin/activate\""
+echo "Set OPENAI_API_KEY in ../.env (repo root) — see ../.env.example"

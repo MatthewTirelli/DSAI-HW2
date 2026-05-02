@@ -1,31 +1,34 @@
 # clinical_pipeline.py
-# Homework 2 — tool cohort extraction, RAG retrieval payload, two-agent LLM flow
-# Shiny UI (app/app.py) calls run_full_homework2_pipeline(); optional CLI via __main__
+# Homework 2 — OpenAI tool cohort extraction, deterministic retrieval, dual-report QC flow
 
-# 0. SETUP ###################################
-
-## 0.1 Load Packages ############################
+from __future__ import annotations
 
 import json
 import os
 import sqlite3
 import sys
+import time
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 
 import pandas as pd
 import yaml
-
-## 0.2 Local imports ############################
 
 HW2_ROOT = Path(__file__).resolve().parent
 if str(HW2_ROOT) not in sys.path:
     sys.path.insert(0, str(HW2_ROOT))
 
-from functions import DEFAULT_MODEL, OLLAMA_HOST, agent, agent_run, df_as_text  # noqa: E402
+from functions import DEFAULT_MODEL, agent, agent_run, df_as_text  # noqa: E402 (loads repo `.env` via functions)
+from qc.report_generation import write_summary_markdown  # noqa: E402
+from qc.scoring import compute_validity_score  # noqa: E402
+from qc.statistical_analysis import analyze_results  # noqa: E402
+from qc.validators import (  # noqa: E402
+    extract_hw2_ground_truth,
+    section_headers_for_mode,
+    validate_hw2_report,
+)
 from retrieval import build_cohort_retrieval_payload  # noqa: E402
-
-## 0.3 Configuration ############################
 
 MODEL = DEFAULT_MODEL
 PHQ9_MIN_EXCLUSIVE = 15
@@ -35,6 +38,9 @@ _env_db = os.environ.get("PATIENTS_DB")
 DB_PATH = Path(_env_db).expanduser().resolve() if _env_db else HW2_ROOT / "patients.db"
 OUT_DIR = HW2_ROOT / "out"
 RULES_PATH = HW2_ROOT / "clinical_rag_rules.yaml"
+
+PROMPT_BASELINE_PATH = HW2_ROOT / "qc" / "prompts" / "hw2_baseline_prompt.txt"
+PROMPT_GROUNDED_PATH = HW2_ROOT / "qc" / "prompts" / "hw2_grounded_prompt.txt"
 
 AGENT1_TOOL_NAME = "list_phq9_elevated_with_safety_concerns"
 AGENT1_TOOL_CHOICE = {"type": "function", "function": {"name": AGENT1_TOOL_NAME}}
@@ -53,14 +59,8 @@ tool_list_phq9_safety = {
     },
 }
 
-# 1. TOOL + HELPERS ###################################
-
 
 def list_phq9_elevated_with_safety_concerns(**_kwargs):
-    """
-    Visits where PHQ-9 > 15 and safety_concerns is Y.
-    Ignores model-supplied paths so only PATIENTS_DB / HW2/patients.db is read.
-    """
     path = str(DB_PATH.resolve())
     sql = """
     SELECT
@@ -86,13 +86,11 @@ def list_phq9_elevated_with_safety_concerns(**_kwargs):
 
 
 def load_rules() -> str:
-    """Flatten clinical_rag_rules.yaml into model-readable text."""
     raw = yaml.safe_load(RULES_PATH.read_text(encoding="utf-8"))
     return yaml.dump(raw, default_flow_style=False, allow_unicode=True, sort_keys=False)
 
 
 def _coerce_tool_result_to_dataframe(result):
-    """Normalize agent() return value to cohort DataFrame."""
     if isinstance(result, pd.DataFrame):
         return result
     if isinstance(result, list) and result:
@@ -142,6 +140,7 @@ def _write_agent1_tool_trace(model: str, result_all: dict) -> None:
 
     trace = {
         "model": model,
+        "llm_backend": "openai",
         "expected_tool": AGENT1_TOOL_NAME,
         "invocation_path": invocation,
         "tool_calls": trace_tool_calls,
@@ -174,7 +173,6 @@ def build_retrieval_verification(
     db_path: str,
     lapsed_min_days: int,
 ) -> dict:
-    """Structured checks: cohort IDs, provider sums, lapsed row counts, SQL visit total."""
     checks = []
     payload_ids = set(int(x) for x in payload.get("cohort_patient_ids", []))
     if "patient_id" in cohort_df.columns:
@@ -256,12 +254,84 @@ def build_retrieval_verification(
     }
 
 
-def run_full_homework2_pipeline(log=None):
+def _lapsed_row_count(payload: dict) -> int:
+    lf = payload.get("lapsed_followup") or {}
+    rc = lf.get("row_count")
+    if rc is not None:
+        return int(rc)
+    return len(lf.get("retrieval_rows") or [])
+
+
+def _fill_prompt(template: str, **kwargs: str) -> str:
+    out = template
+    for k, v in kwargs.items():
+        out = out.replace(f"<<<{k}>>>", v)
+    return out
+
+
+def _build_user_prompt(path: Path, *, cohort_table: str, retrieval_json_str: str, rules_text: str, verify: dict, payload: dict, n_visits: int, n_patients: int) -> str:
+    raw = path.read_text(encoding="utf-8")
+    checks = verify.get("checks") or []
+    vdetail = "; ".join(f"{c['name']}: {'PASS' if c.get('passed') else 'FAIL'}" for c in checks) or "none"
+    vstatus = "passed" if verify.get("all_passed") else "flagged issues — see QC notes"
+    lapsed = _lapsed_row_count(payload)
+    filled = _fill_prompt(
+        raw,
+        RULES_BLOCK=rules_text,
+        COHORT_TABLE=cohort_table,
+        RETRIEVAL_JSON=retrieval_json_str,
+        N_VISITS=str(n_visits),
+        N_PATIENTS=str(n_patients),
+        VERIFY_STATUS=vstatus,
+        VERIFY_STATUS_DETAIL=vdetail,
+        LAPSED_ROW_COUNT=str(lapsed),
+    )
+    return filled
+
+
+def _report_system_role() -> str:
+    return (
+        "You write Markdown reports for synthetic educational dashboards. "
+        "Follow the USER message exactly regarding structure and grounding. "
+        "Do not fabricate PHI or undocumented clinical facts."
+    )
+
+
+def _score_report_row(*, trial_id: int, mode: str, report_text: str, gt: dict, runtime_s: float) -> dict:
+    headers = section_headers_for_mode(mode)
+    metrics = validate_hw2_report(report_text, gt, section_headers=headers)
+    score = compute_validity_score(metrics, concision_score_1_5=None)
+    row = {
+        "trial_id": trial_id,
+        "mode": mode,
+        "runtime_s": runtime_s,
+        "dominant_confidence_label": "neutral",
+        "dominant_confidence_score": None,
+        "report_text": report_text,
+        **metrics,
+        **score,
+        "unsupported_claims": "[]",
+        "confidence_misuse": json.dumps(metrics.get("confidence_misuse", []), ensure_ascii=False),
+        "missing_required_elements": "[]",
+        "grader_payload": "",
+    }
+    return row
+
+
+def load_qc_reference_bundle(out_dir: Path | None = None) -> tuple[pd.DataFrame, dict[str, Any], dict[str, Any]]:
+    """Cohort from local SQL + frozen `retrieval_*.json` under `out/` — no OpenAI calls."""
+    root = OUT_DIR if out_dir is None else Path(out_dir)
+    cohort_df = list_phq9_elevated_with_safety_concerns()
+    payload = json.loads((root / "retrieval_payload.json").read_text(encoding="utf-8"))
+    verify = json.loads((root / "retrieval_verification.json").read_text(encoding="utf-8"))
+    return cohort_df, payload, verify
+
+
+def run_full_homework2_pipeline(log=None, qc_trials: int = 1, qc_base_seed: int | None = 42):
     """
-    Agent 1 (forced tool) → cohort DataFrame → RAG JSON → verification → Agent 2 report.
-    Writes artifacts under out/. Returns dict for the Shiny server.
+    Agent 1 (OpenAI forced tool) → cohort → deterministic retrieval payload → Prompt A/B reports → QC.
     """
-    del log  # reserved for future UI logging hooks
+    del log
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -289,7 +359,7 @@ def run_full_homework2_pipeline(log=None):
     if cohort_df is None:
         raise RuntimeError(
             "Agent 1 did not return cohort data via the tool. "
-            "Use a tool-capable model (e.g. llama3.2), upgrade Ollama, and retry."
+            "Confirm OPENAI_API_KEY in the repo-root `.env` (or exported), use a tools-capable model (e.g. gpt-4o-mini / gpt-4o), and retry."
         )
 
     msg = result1.get("message") or {}
@@ -315,6 +385,7 @@ def run_full_homework2_pipeline(log=None):
         "## Run metadata",
         "",
         f"- **Model:** `{MODEL}`",
+        f"- **Backend:** OpenAI Chat Completions",
         f"- **Cohort function:** `{AGENT1_TOOL_NAME}`",
         f"- **Database:** `{DB_PATH}`",
         "- **Cohort rule:** PHQ-9 > 15 and `safety_concerns` = Y",
@@ -356,49 +427,83 @@ def run_full_homework2_pipeline(log=None):
 
     cohort_table = df_as_text(cohort_df)
     retrieval_json_str = json.dumps(payload, indent=2, default=str)
+    rules_text = load_rules()
 
-    role2 = (
-        "You are a clinical chart reviewer writing an administrative and clinical synthesis for a quality committee.\n"
-        "Use ONLY facts present in the user message (cohort table and analytics JSON).\n\n"
-        + load_rules()
-    )
-    task2 = (
-        "Ground-truth materials for this report:\n\n"
-        f"1) Cohort rule: PHQ-9 > 15 and safety_concerns = Y.\n"
-        f"2) Qualifying visits (table rows): {n_visits}\n"
-        f"3) Unique patients (patient_id in table): {n_patients}\n\n"
-        "Full cohort Markdown table:\n"
-        f"{cohort_table}\n\n"
-        "Retrieval analytics JSON (deterministic; cite these counts exactly):\n"
-        f"```json\n{retrieval_json_str}\n```\n\n"
-        "Write a comprehensive Markdown report with sections:\n"
-        "## Executive summary\n"
-        "## Cohort overview\n"
-        "## Provider and access patterns\n"
-        "## Medication and documentation themes\n"
-        "## Lapsed follow-up and care continuity\n"
-        "## Data limitations and audit notes\n"
-        "Do not invent patient names, IDs, dates, or counts not supported by the table or JSON."
-    )
+    gt = extract_hw2_ground_truth(cohort_df, payload, verify)
 
-    report_md = agent_run(role=role2, task=task2, model=MODEL, tools=None, output="text")
-    (OUT_DIR / "homework2_comprehensive_report.md").write_text(report_md, encoding="utf-8")
+    qc_trials = max(1, int(qc_trials))
+    qc_rows: list[dict] = []
+
+    report_b_latest = ""
+    report_a_latest = ""
+
+    sys_r = _report_system_role()
+
+    for t in range(qc_trials):
+        trial_seed = None if qc_base_seed is None else int(qc_base_seed) + t
+
+        user_a = _build_user_prompt(
+            PROMPT_BASELINE_PATH,
+            cohort_table=cohort_table,
+            retrieval_json_str=retrieval_json_str,
+            rules_text=rules_text,
+            verify=verify,
+            payload=payload,
+            n_visits=n_visits,
+            n_patients=n_patients,
+        )
+        t0 = time.time()
+        report_a = agent_run(role=sys_r, task=user_a, model=MODEL, tools=None, seed=trial_seed)
+        ta = time.time() - t0
+        report_a_latest = report_a
+
+        user_b = _build_user_prompt(
+            PROMPT_GROUNDED_PATH,
+            cohort_table=cohort_table,
+            retrieval_json_str=retrieval_json_str,
+            rules_text=rules_text,
+            verify=verify,
+            payload=payload,
+            n_visits=n_visits,
+            n_patients=n_patients,
+        )
+        t0 = time.time()
+        report_b = agent_run(role=sys_r, task=user_b, model=MODEL, tools=None, seed=(trial_seed + 10_000) if trial_seed is not None else None)
+        tb = time.time() - t0
+        report_b_latest = report_b
+
+        qc_rows.append(_score_report_row(trial_id=t, mode="baseline", report_text=report_a, gt=gt, runtime_s=ta))
+        qc_rows.append(_score_report_row(trial_id=t, mode="grounded", report_text=report_b, gt=gt, runtime_s=tb))
+
+    qc_results_df = pd.DataFrame(qc_rows)
+    qc_results_df.to_csv(OUT_DIR / "qc_results.csv", index=False)
+
+    summary = analyze_results(qc_results_df)
+    write_summary_markdown(summary, qc_results_df, OUT_DIR / "qc_summary.md")
+
+    (OUT_DIR / "prompt_a_baseline_report.md").write_text(report_a_latest, encoding="utf-8")
+    (OUT_DIR / "prompt_b_grounded_report.md").write_text(report_b_latest, encoding="utf-8")
+    (OUT_DIR / "homework2_comprehensive_report.md").write_text(report_b_latest, encoding="utf-8")
 
     return {
         "cohort_df": cohort_df,
-        "report_full": report_md,
+        "report_full": report_b_latest,
+        "report_baseline": report_a_latest,
+        "retrieval_payload": payload,
         "verify_json": verify,
+        "qc_summary": summary,
+        "qc_results_df": qc_results_df,
         "n_visits": n_visits,
         "n_patients": n_patients,
     }
 
 
-# 2. CLI ###################################
 if __name__ == "__main__":
     print("Homework 2 pipeline (clinical_pipeline.py)…", flush=True)
-    print(f"Ollama: {OLLAMA_HOST} — model: {MODEL}", flush=True)
+    print(f"OpenAI model: {MODEL}", flush=True)
     print(f"Database: {DB_PATH}", flush=True)
     if not DB_PATH.is_file():
         raise SystemExit(f"Missing database: {DB_PATH}")
-    out = run_full_homework2_pipeline()
+    ntrials = int(os.environ.get("HW2_QC_TRIALS", "1"))
+    out = run_full_homework2_pipeline(qc_trials=ntrials)
     print(f"Done. Visits: {out['n_visits']}, patients: {out['n_patients']}. Outputs in {OUT_DIR}/", flush=True)

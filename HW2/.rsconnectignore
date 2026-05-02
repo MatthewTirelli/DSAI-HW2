@@ -1,0 +1,12 @@
+# Files not needed on Systems Connect bundle (adjust if you intentionally ship cached QC)
+.venv/
+__pycache__/
+*.pyc
+.Python
+.env
+*.env
+.DS_Store
+tmp_app_extract/
+
+# Regenerated on server after runs (omit to shrink bundle; create empty dirs if admin requires)
+out/

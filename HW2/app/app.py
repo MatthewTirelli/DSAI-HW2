@@ -10,7 +10,6 @@ from pathlib import Path
 
 import markdown
 import pandas as pd
-import requests
 from htmltools import HTML, head_content, html_escape
 from shiny import App, reactive, render, ui
 
@@ -18,9 +17,22 @@ APP_DIR = Path(__file__).resolve().parent
 HW2_ROOT = APP_DIR.parent
 if str(HW2_ROOT) not in sys.path:
     sys.path.insert(0, str(HW2_ROOT))
+if str(APP_DIR) not in sys.path:
+    sys.path.insert(0, str(APP_DIR))
 
 import clinical_pipeline as hw  # noqa: E402
-from functions import OLLAMA_HOST  # noqa: E402
+from functions import openai_api_configured  # noqa: E402
+from live_validation_card import (  # noqa: E402
+    LIVE_VALIDATION_CSS,
+    build_live_validation_html,
+    grounded_section_headers_missing,
+)
+from qc.scoring import compute_validity_score  # noqa: E402
+from qc.validators import (  # noqa: E402
+    HW2_GROUNDED_SECTION_HEADERS,
+    extract_hw2_ground_truth,
+    validate_hw2_report,
+)
 
 CSS_PATH = APP_DIR / "www" / "clinical.css"
 
@@ -56,14 +68,6 @@ COHORT_LABELS: dict[str, str] = {
     "patient_id": "Patient ID",
     "visit_id": "Visit ID",
 }
-
-
-def _ollama_ok(timeout: float = 2.0) -> bool:
-    try:
-        r = requests.get(f"{OLLAMA_HOST}/api/tags", timeout=timeout)
-        return r.ok
-    except OSError:
-        return False
 
 
 def _fmt_cell_display(col: str, val: object) -> str:
@@ -139,6 +143,84 @@ def _visits_accordion_title() -> ui.Tag:
     )
 
 
+def _qc_dashboard_html(summary: dict) -> str:
+    if not summary:
+        return (
+            '<p class="hrpi-muted"><strong>Run analysis</strong> first — then reopen this section to compare baseline vs grounded '
+            "summary scores and statistics.</p>"
+        )
+
+    absv = summary.get("absolute_validity") or {}
+    bym = absv.get("by_mode") or {}
+    pb = bym.get("baseline", {})
+    pg = bym.get("grounded", {})
+    comp = summary.get("comparative") or {}
+    prc = summary.get("pass_rate_comparison")
+    fm = (summary.get("failure_mode_analysis") or {}).get("interpretation") or ""
+
+    rows = []
+    rows.append("<h4 class=\"hrpi-h4\">Baseline vs grounded summary</h4>")
+    rows.append(
+        "<table class=\"table table-sm hrpi-qctable\"><thead><tr><th>Summary type</th><th>Average score (0–100)</th>"
+        "<th>Share passing all checks</th></tr></thead><tbody>"
+    )
+    rows.append(
+        f"<tr><td>Baseline summary</td><td>{pb.get('mean_validity', 0):.1f}</td><td>{100*pb.get('pass_rate', 0):.1f}%</td></tr>"
+    )
+    rows.append(
+        f"<tr><td>Grounded summary</td><td>{pg.get('mean_validity', 0):.1f}</td><td>{100*pg.get('pass_rate', 0):.1f}%</td></tr>"
+    )
+    rows.append("</tbody></table>")
+
+    if comp:
+        rows.append("<h4 class=\"hrpi-h4\">Paired score comparison</h4><ul>")
+        rows.append(
+            f"<li>Paired <em>t</em> statistic (grounded minus baseline): <code>{comp.get('paired_t_stat')}</code></li>"
+        )
+        rows.append(
+            f"<li>Cohen's <em>d</em> (grounded − baseline): <code>{comp.get('effect_size_cohens_d')}</code></li>"
+        )
+        rows.append("</ul>")
+
+    rows.append("<h4 class=\"hrpi-h4\">Pass rates &amp; McNemar test</h4><ul>")
+    if isinstance(prc, dict) and prc.get("n_paired_trials"):
+        pv = prc.get("mcnemar_p_value")
+        rows.append(f"<li>Paired runs: <strong>{prc.get('n_paired_trials')}</strong></li>")
+        rows.append(f"<li>Difference (grounded − baseline): <strong>{100 * float(prc.get('pass_rate_difference', 0)):.2f}</strong> percentage points</li>")
+        rows.append(
+            f"<li>Bootstrap 95% interval (percentage points): [<strong>{100 * float(prc.get('difference_ci95_low', 0)):.2f}</strong>, "
+            f"<strong>{100 * float(prc.get('difference_ci95_high', 0)):.2f}</strong>]</li>"
+        )
+        if pv is not None:
+            rows.append(f"<li>McNemar exact <em>p</em>-value: <strong>{pv:.4g}</strong> ({prc.get('mcnemar_method', '')})</li>")
+            rows.append(
+                f"<li>Discordant counts (baseline pass / grounded fail vs baseline fail / grounded pass): "
+                f"<strong>{prc.get('mcnemar_b')}</strong>, <strong>{prc.get('mcnemar_c')}</strong></li>"
+            )
+        else:
+            rows.append(f"<li><em>{prc.get('mcnemar_note') or 'McNemar test unavailable.'}</em></li>")
+    else:
+        rows.append(
+            "<li><em>Run several analysis batches to unlock Wilson intervals, bootstrap, and McNemar summaries.</em></li>"
+        )
+    rows.append("</ul>")
+
+    if fm:
+        rows.append("<h4 class=\"hrpi-h4\">Common gaps (from automated review)</h4>")
+        rows.append(f"<p>{html_escape(fm)}</p>")
+
+    qroot = hw.HW2_ROOT / "out"
+    rows.append("<h4 class=\"hrpi-h4\">Saved output files</h4><ul>")
+    rows.append(f"<li><code>{html_escape(str(qroot / 'qc_results.csv'))}</code></li>")
+    rows.append(f"<li><code>{html_escape(str(qroot / 'qc_summary.md'))}</code></li>")
+    rows.append("</ul>")
+    rows.append(
+        '<p class="hrpi-muted">Uses synthetic demonstration data — scores support teaching only, '
+        "not regulatory or clinical certification.</p>"
+    )
+    return "\n".join(rows)
+
+
 def _reference_end_date(df: pd.DataFrame | None) -> date:
     """Anchor relative windows to the latest visit in the cohort (stable for static DBs)."""
     if df is None or df.empty or "visit_date" not in df.columns:
@@ -171,10 +253,20 @@ def _filter_chip(text: str, remove_input_id: str) -> ui.Tag:
 
 def _report_accordion_title() -> ui.Tag:
     return ui.div(
-        ui.div({"class": "hrpi-acc-title-lg"}, "Clinical Summary Report"),
+        ui.div({"class": "hrpi-acc-title-lg"}, "Clinical summary"),
         ui.div(
             {"class": "hrpi-acc-sub"},
-            "Generated from cohort-level analysis",
+            "Structured summary aligned with cohort data and supporting tables",
+        ),
+    )
+
+
+def _qc_accordion_title() -> ui.Tag:
+    return ui.div(
+        ui.div({"class": "hrpi-acc-title-lg"}, "Quality checks"),
+        ui.div(
+            {"class": "hrpi-acc-sub"},
+            "Open for baseline vs grounded comparison, scores, and detailed statistics",
         ),
     )
 
@@ -193,7 +285,7 @@ app_ui = ui.page_fillable(
             {"class": "hrpi-dash-header"},
             ui.div(
                 {"class": "hrpi-dash-brand"},
-                ui.h1({"class": "hrpi-dash-title"}, "High Risk Patient Identifier"),
+                ui.h1({"class": "hrpi-dash-title"}, "High Risk Patient Identifier (HW3)"),
                 ui.p(
                     {"class": "hrpi-dash-tagline"},
                     "Review high-risk visits and a concise clinical summary in one place.",
@@ -205,12 +297,13 @@ app_ui = ui.page_fillable(
             {"class": "hrpi-hero-card"},
             ui.p(
                 {"class": "hrpi-hero-lead"},
-                "Generate an up-to-date visit list and summary from the connected analysis service. "
-                "First run may take a few minutes while the model loads.",
+                "Review the latest high-risk visits and generate a concise clinical summary. "
+                "First runs may take about a minute.",
             ),
+            ui.output_ui("setup_hint"),
             ui.input_action_button(
                 "run_pipeline",
-                "Generate clinical summary",
+                "Run analysis",
                 class_="btn-primary hrpi-btn-primary",
             ),
         ),
@@ -221,7 +314,7 @@ app_ui = ui.page_fillable(
                     ui.div({"class": "hrpi-acc-title-lg"}, "Activity"),
                     ui.div(
                         {"class": "hrpi-acc-sub"},
-                        "Run status and last results",
+                        "Latest run details",
                     ),
                 ),
                 ui.output_ui("activity_body"),
@@ -275,7 +368,7 @@ app_ui = ui.page_fillable(
                             ui.input_selectize(
                                 "filter_provider",
                                 "Provider",
-                                choices={"_": "Run analysis to load providers"},
+                                choices={"_": "After analysis, providers appear here"},
                                 multiple=True,
                                 selected=[],
                             ),
@@ -301,8 +394,24 @@ app_ui = ui.page_fillable(
                 ui.div(
                     ui.output_ui("report_context"),
                     ui.output_ui("report_panel"),
+                    ui.div(
+                        {"class": "hrpi-live-validation-wrap"},
+                        ui.output_ui("live_report_validation"),
+                    ),
                 ),
                 value="report",
+            ),
+            ui.accordion_panel(
+                _qc_accordion_title(),
+                ui.div(
+                    ui.p(
+                        {"class": "hrpi-qc-intro"},
+                        "Detailed quality metrics comparison: baseline versus grounded summaries, "
+                        "how often each clears all automated checks, and statistical tests from your latest batch run.",
+                    ),
+                    ui.output_ui("qc_panel"),
+                ),
+                value="qc",
             ),
             id="main_acc",
             open=["activity", "visits", "report"],
@@ -314,7 +423,7 @@ app_ui = ui.page_fillable(
             "Synthetic educational data only — not for clinical use.",
         ),
     ),
-    title="High Risk Patient Identifier",
+    title="High Risk Patient Identifier (HW3)",
     fillable=True,
 )
 
@@ -322,50 +431,84 @@ app_ui = ui.page_fillable(
 def server(input, output, session):
     cohort_df_rv = reactive.Value(None)
     report_md_rv = reactive.Value("")
-    activity_rv = reactive.Value(
-        'Select "Generate clinical summary" when you are ready. '
-        "Ensure the local analysis service is running."
-    )
+    activity_rv = reactive.Value('Select Run analysis when you are ready.')
     last_updated_rv = reactive.Value("")
     last_metrics_rv = reactive.Value((0, 0, True))
+    qc_summary_rv = reactive.Value({})
+    live_validation_bundle_rv: reactive.Value[dict | None] = reactive.Value(None)
     running_rv = reactive.Value(False)
     banner_error_rv = reactive.Value("")
     ai_ok_rv = reactive.Value(None)
 
     @reactive.effect
     def _probe_ai_on_load():
-        ai_ok_rv.set(_ollama_ok())
+        ai_ok_rv.set(openai_api_configured())
 
     @reactive.effect
     @reactive.event(input.run_pipeline)
     def _run_pipeline():
         banner_error_rv.set("")
-        ai_ok_rv.set(_ollama_ok())
+        ai_ok_rv.set(openai_api_configured())
         if not hw.DB_PATH.is_file():
-            banner_error_rv.set("Patient records file not found. Add it to this folder or set PATIENTS_DB.")
-            activity_rv.set("Cannot run — the patient database file is missing.")
+            banner_error_rv.set("Patient records not found — add patients.db beside the app folder or configure PATIENTS_DB.")
+            activity_rv.set("Cannot run analysis — patient record file missing.")
             return
         running_rv.set(True)
         activity_rv.set(
-            "Generating clinical summary…\n\n"
-            "Identifying high-risk visits and drafting the report. "
-            "This may take several minutes — please keep this tab open."
+            "Working on your summary…\n\n"
+            "Gathering visits and drafting the clinical summary — this may take a few minutes — please keep this tab open."
         )
         try:
-            result = hw.run_full_homework2_pipeline(log=None)
+            import os as _os
+
+            n_trials = int(_os.environ.get("HW2_QC_TRIALS_APP", _os.environ.get("HW2_QC_TRIALS", "1")))
+            result = hw.run_full_homework2_pipeline(log=None, qc_trials=max(1, n_trials))
             cohort_df_rv.set(result["cohort_df"])
             report_md_rv.set(result["report_full"])
+            qc_summary_rv.set(result.get("qc_summary") or {})
+            try:
+                gt = extract_hw2_ground_truth(
+                    result["cohort_df"], result["retrieval_payload"], result["verify_json"]
+                )
+                m_live = validate_hw2_report(
+                    result["report_full"], gt, section_headers=HW2_GROUNDED_SECTION_HEADERS
+                )
+                score_live = compute_validity_score(m_live)
+                live_validation_bundle_rv.set(
+                    {
+                        "metrics": dict(m_live),
+                        "score": dict(score_live),
+                        "missing_headers": grounded_section_headers_missing(result["report_full"]),
+                    }
+                )
+            except Exception:
+                live_validation_bundle_rv.set(None)
             ok = result["verify_json"]["all_passed"]
             n_visits = result["n_visits"]
             n_patients = result["n_patients"]
+            qc_df = result.get("qc_results_df")
+            b_pass = g_pass = None
+            if qc_df is not None and not qc_df.empty and "passed_absolute_validity" in qc_df.columns:
+                sub_b = qc_df[qc_df["mode"].astype(str).str.lower() == "baseline"]
+                sub_g = qc_df[qc_df["mode"].astype(str).str.lower() == "grounded"]
+                if not sub_b.empty:
+                    b_pass = bool(sub_b.iloc[-1]["passed_absolute_validity"])  # numpy.bool_ safe
+                if not sub_g.empty:
+                    g_pass = bool(sub_g.iloc[-1]["passed_absolute_validity"])
             last_updated_rv.set(datetime.now().strftime("%b %d, %Y"))
             last_metrics_rv.set((n_visits, n_patients, ok))
-            qc = "Passed" if ok else "Review exported notes in the output folder"
+            rqc = "Data checks passed" if ok else "Data checks flagged — review quality notes below"
+            pq = ""
+            if b_pass is not None and g_pass is not None:
+                pq = (
+                    f"\nReport quality check — baseline summary: {'passed' if b_pass else 'needs review'}; "
+                    f"grounded summary: {'passed' if g_pass else 'needs review'}."
+                )
             activity_rv.set(
-                "Analysis complete.\n\n"
+                "Analysis completed successfully.\n\n"
                 f"High-risk visits: {n_visits}\n"
-                f"Unique patients: {n_patients}\n"
-                f"Quality checks: {qc}"
+                f"Patients: {n_patients}\n"
+                f"{rqc}{pq}"
             )
             df = result["cohort_df"]
             if df is not None and not df.empty:
@@ -392,10 +535,12 @@ def server(input, output, session):
                     selected=list(SEVERITY_ALL),
                 )
         except Exception:
-            banner_error_rv.set("AI summary unavailable. Please try again.")
+            banner_error_rv.set(
+                "Something went wrong while generating your summary — check connectivity, quotas, "
+                "and ensure your AI key or account settings allow this request."
+            )
             activity_rv.set(
-                "The summary could not be generated. "
-                "Confirm the analysis service is running, then try again."
+                "The analysis could not finish — try again shortly. If problems continue, verify your AI access and quota."
             )
         finally:
             running_rv.set(False)
@@ -404,17 +549,23 @@ def server(input, output, session):
     def ai_status_badge():
         ok = ai_ok_rv.get()
         if ok is True:
-            return ui.span({"class": "hrpi-badge-ai hrpi-badge-ai--ok"}, "AI Connected")
+            return ui.span({"class": "hrpi-badge-ai hrpi-badge-ai--ok"}, "AI ready")
         if ok is False:
-            return ui.span({"class": "hrpi-badge-ai hrpi-badge-ai--bad"}, "AI Not Connected")
+            return ui.span({"class": "hrpi-badge-ai hrpi-badge-ai--bad"}, "Needs API key")
         return ui.span({"class": "hrpi-badge-ai hrpi-badge-ai--unknown"}, "Checking…")
+
+    @render.ui
+    def setup_hint():
+        if ai_ok_rv.get() is False:
+            return ui.div({"class": "hrpi-setup-hint"}, "AI setup needed — add your OpenAI API key to continue.")
+        return ui.div()
 
     @render.ui
     def banner_messages():
         if running_rv.get():
             return ui.div(
                 {"class": "hrpi-banner hrpi-banner--loading"},
-                "Generating clinical summary…",
+                "Running analysis…",
             )
         err = banner_error_rv.get()
         if err:
@@ -605,7 +756,7 @@ def server(input, output, session):
         if base is None:
             return ui.div(
                 {"class": "hrpi-cohort-summary hrpi-cohort-summary--muted"},
-                "Generate a summary to load high-risk visits.",
+                "Run analysis to load visits.",
             )
         fc = filtered_cohort()
         assert fc is not None
@@ -625,7 +776,7 @@ def server(input, output, session):
         if df is None:
             return ui.div(
                 {"class": "hrpi-cohort-empty"},
-                "Generate a summary to view the visit list.",
+                "Run analysis to load the visit list.",
             )
         fc = filtered_cohort()
         assert fc is not None
@@ -655,10 +806,47 @@ def server(input, output, session):
         if not md:
             return ui.div(
                 {"class": "hrpi-report-empty"},
-                "The clinical summary will appear here after you generate it.",
+                "Your grounded clinical summary will appear here after you run analysis.",
             )
         html = markdown.markdown(md, extensions=["tables", "fenced_code", "nl2br"])
         return ui.div({"class": "hrpi-report-body"}, ui.HTML(html))
+
+    @render.ui
+    def live_report_validation():
+        md = report_md_rv.get() or ""
+        n_visits, n_patients, retr_ok = last_metrics_rv.get()
+        b = live_validation_bundle_rv.get()
+        if md.strip() and not b:
+            stale = (
+                LIVE_VALIDATION_CSS
+                + '<div class="lv-section-title">Summary quality checks</div>'
+                + '<div class="lv-scope"><p class="lv-muted">'
+                "Scores for this screen are outdated — choose <strong>Run analysis</strong> again "
+                "to refresh the summary quality checklist.</p></div>"
+            )
+            return ui.HTML(stale)
+        metrics: dict = {}
+        score: dict = {}
+        missing_headers: list[str] = []
+        if b:
+            metrics = b.get("metrics") or {}
+            score = b.get("score") or {}
+            missing_headers = list(b.get("missing_headers") or [])
+        html_str = build_live_validation_html(
+            report_text=md.strip(),
+            metrics=metrics,
+            score=score,
+            n_visits=int(n_visits),
+            n_patients=int(n_patients),
+            retrieval_all_passed=bool(retr_ok),
+            missing_headers=missing_headers,
+        )
+        return ui.HTML(html_str)
+
+    @render.ui
+    def qc_panel():
+        summary = qc_summary_rv.get() or {}
+        return ui.div({"class": "hrpi-report-body hrpi-qcpanel"}, ui.HTML(_qc_dashboard_html(summary)))
 
 
 app = App(app_ui, server)
