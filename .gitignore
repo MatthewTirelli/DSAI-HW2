@@ -1,5 +1,6 @@
-# HW2/out/ holds qc_results.csv, qc_summary.md, reports — intentionally
-# tracked for assignments; do not add a blanket `out/` or `**/out/` rule without negations.
+# HW2/out/ holds qc_results.csv, qc_summary.md, reports, immutable qc_batches,
+# and ai_qualitative_review_* outputs — intentionally tracked for assignments;
+# do not add a blanket `out/` or `**/out/` rule without negations.
 
 .DS_Store
 # Leftover unzip / scratch dirs
