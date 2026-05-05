@@ -498,6 +498,91 @@ def run_full_homework2_pipeline(log=None, qc_trials: int = 1, qc_base_seed: int 
     }
 
 
+def run_live_homework2_pipeline(log=None):
+    """
+    App-safe live run:
+    Agent 1 (OpenAI forced tool) → cohort → deterministic retrieval payload → grounded report.
+    Does NOT run baseline-vs-grounded QC trials and does NOT write qc_results/qc_summary outputs.
+    """
+    del log
+
+    OUT_DIR.mkdir(parents=True, exist_ok=True)
+
+    role1 = (
+        "You are a clinical data assistant. You may ONLY satisfy requests by calling the "
+        f"provided tool `{AGENT1_TOOL_NAME}`. Call it exactly once with arguments: {{}} "
+        "(empty JSON object). Do not reply with prose, lists, or invented patients."
+    )
+    task1 = (
+        "Pull every visit where PHQ-9 is above 15 and safety_concerns is Y. "
+        f"Call `{AGENT1_TOOL_NAME}` with {{}}."
+    )
+
+    result1 = agent(
+        messages=[{"role": "system", "content": role1}, {"role": "user", "content": task1}],
+        model=MODEL,
+        tools=[tool_list_phq9_safety],
+        tool_choice=AGENT1_TOOL_CHOICE,
+        all=True,
+    )
+    _write_agent1_tool_trace(MODEL, result1)
+    cohort_df = _coerce_tool_result_to_dataframe(result1)
+    if cohort_df is None:
+        raise RuntimeError(
+            "Agent 1 did not return cohort data via the tool. "
+            "Confirm OPENAI_API_KEY in the repo-root `.env` (or exported), use a tools-capable model (e.g. gpt-4o-mini / gpt-4o), and retry."
+        )
+
+    n_visits = int(len(cohort_df))
+    n_patients = (
+        int(cohort_df["patient_id"].nunique()) if "patient_id" in cohort_df.columns else n_visits
+    )
+
+    patient_ids = [int(x) for x in cohort_df["patient_id"].dropna().unique()] if n_visits else []
+    db_path_str = str(DB_PATH.resolve())
+    payload = build_cohort_retrieval_payload(db_path_str, patient_ids, lapsed_min_days=LAPSED_FOLLOWUP_DAYS)
+    (OUT_DIR / "retrieval_payload.json").write_text(
+        json.dumps(payload, indent=2, default=str, ensure_ascii=False),
+        encoding="utf-8",
+    )
+
+    verify = build_retrieval_verification(cohort_df, payload, db_path_str, LAPSED_FOLLOWUP_DAYS)
+    (OUT_DIR / "retrieval_verification.json").write_text(
+        json.dumps(verify, indent=2, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    _write_retrieval_verification_md(verify)
+
+    cohort_table = df_as_text(cohort_df)
+    retrieval_json_str = json.dumps(payload, indent=2, default=str)
+    rules_text = load_rules()
+    sys_r = _report_system_role()
+
+    user_b = _build_user_prompt(
+        PROMPT_GROUNDED_PATH,
+        cohort_table=cohort_table,
+        retrieval_json_str=retrieval_json_str,
+        rules_text=rules_text,
+        verify=verify,
+        payload=payload,
+        n_visits=n_visits,
+        n_patients=n_patients,
+    )
+    report_b = agent_run(role=sys_r, task=user_b, model=MODEL, tools=None, seed=42)
+
+    (OUT_DIR / "prompt_b_grounded_report.md").write_text(report_b, encoding="utf-8")
+    (OUT_DIR / "homework2_comprehensive_report.md").write_text(report_b, encoding="utf-8")
+
+    return {
+        "cohort_df": cohort_df,
+        "report_full": report_b,
+        "retrieval_payload": payload,
+        "verify_json": verify,
+        "n_visits": n_visits,
+        "n_patients": n_patients,
+    }
+
+
 if __name__ == "__main__":
     print("Homework 2 pipeline (clinical_pipeline.py)…", flush=True)
     print(f"OpenAI model: {MODEL}", flush=True)

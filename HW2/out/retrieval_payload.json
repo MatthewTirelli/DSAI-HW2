@@ -520,7 +520,7 @@
         "last_visit_date": "2024-10-16",
         "last_visit_diagnosis": "Social Anxiety Disorder",
         "last_visit_provider": "Dr. Murphy",
-        "days_since_last_visit": 563
+        "days_since_last_visit": 566
       },
       {
         "patient_id": 32,
@@ -528,7 +528,7 @@
         "last_visit_date": "2025-04-19",
         "last_visit_diagnosis": "Social Anxiety Disorder",
         "last_visit_provider": "Dr. Cortez",
-        "days_since_last_visit": 378
+        "days_since_last_visit": 381
       },
       {
         "patient_id": 16,
@@ -536,7 +536,7 @@
         "last_visit_date": "2025-05-22",
         "last_visit_diagnosis": "Panic Disorder",
         "last_visit_provider": "Dr. Kelly",
-        "days_since_last_visit": 345
+        "days_since_last_visit": 348
       },
       {
         "patient_id": 64,
@@ -544,7 +544,7 @@
         "last_visit_date": "2025-06-23",
         "last_visit_diagnosis": "Bipolar II Disorder",
         "last_visit_provider": "Dr. Murillo",
-        "days_since_last_visit": 313
+        "days_since_last_visit": 316
       },
       {
         "patient_id": 94,
@@ -552,7 +552,7 @@
         "last_visit_date": "2025-06-27",
         "last_visit_diagnosis": "Persistent Depressive Disorder",
         "last_visit_provider": "Dr. Mccarthy",
-        "days_since_last_visit": 309
+        "days_since_last_visit": 312
       },
       {
         "patient_id": 17,
@@ -560,7 +560,7 @@
         "last_visit_date": "2025-07-01",
         "last_visit_diagnosis": "Bipolar II Disorder",
         "last_visit_provider": "Dr. Yu",
-        "days_since_last_visit": 305
+        "days_since_last_visit": 308
       },
       {
         "patient_id": 2,
@@ -568,7 +568,7 @@
         "last_visit_date": "2025-07-27",
         "last_visit_diagnosis": "Generalized Anxiety Disorder",
         "last_visit_provider": "Dr. Brooks",
-        "days_since_last_visit": 279
+        "days_since_last_visit": 282
       },
       {
         "patient_id": 24,
@@ -576,7 +576,7 @@
         "last_visit_date": "2025-09-09",
         "last_visit_diagnosis": "Panic Disorder",
         "last_visit_provider": "Dr. Hubbard",
-        "days_since_last_visit": 235
+        "days_since_last_visit": 238
       },
       {
         "patient_id": 11,
@@ -584,7 +584,7 @@
         "last_visit_date": "2025-10-04",
         "last_visit_diagnosis": "Obsessive-Compulsive Disorder",
         "last_visit_provider": "Dr. Le",
-        "days_since_last_visit": 210
+        "days_since_last_visit": 213
       },
       {
         "patient_id": 98,
@@ -592,7 +592,7 @@
         "last_visit_date": "2025-10-05",
         "last_visit_diagnosis": "Bipolar II Disorder",
         "last_visit_provider": "Dr. Sawyer",
-        "days_since_last_visit": 209
+        "days_since_last_visit": 212
       },
       {
         "patient_id": 30,
@@ -600,7 +600,7 @@
         "last_visit_date": "2025-10-06",
         "last_visit_diagnosis": "Obsessive-Compulsive Disorder",
         "last_visit_provider": "Dr. Mcgrath",
-        "days_since_last_visit": 208
+        "days_since_last_visit": 211
       },
       {
         "patient_id": 37,
@@ -608,7 +608,7 @@
         "last_visit_date": "2025-11-01",
         "last_visit_diagnosis": "Social Anxiety Disorder",
         "last_visit_provider": "Dr. Reyes",
-        "days_since_last_visit": 182
+        "days_since_last_visit": 185
       },
       {
         "patient_id": 51,
@@ -616,7 +616,7 @@
         "last_visit_date": "2025-11-16",
         "last_visit_diagnosis": "ADHD",
         "last_visit_provider": "Dr. Fuller",
-        "days_since_last_visit": 167
+        "days_since_last_visit": 170
       },
       {
         "patient_id": 71,
@@ -624,7 +624,7 @@
         "last_visit_date": "2025-12-04",
         "last_visit_diagnosis": "Panic Disorder",
         "last_visit_provider": "Dr. Carter",
-        "days_since_last_visit": 149
+        "days_since_last_visit": 152
       },
       {
         "patient_id": 46,
@@ -632,7 +632,7 @@
         "last_visit_date": "2025-12-20",
         "last_visit_diagnosis": "Social Anxiety Disorder",
         "last_visit_provider": "Dr. Davis",
-        "days_since_last_visit": 133
+        "days_since_last_visit": 136
       },
       {
         "patient_id": 3,
@@ -640,7 +640,7 @@
         "last_visit_date": "2025-12-25",
         "last_visit_diagnosis": "Social Anxiety Disorder",
         "last_visit_provider": "Dr. Blair",
-        "days_since_last_visit": 128
+        "days_since_last_visit": 131
       },
       {
         "patient_id": 73,
@@ -648,7 +648,7 @@
         "last_visit_date": "2026-01-25",
         "last_visit_diagnosis": "Major Depressive Disorder",
         "last_visit_provider": "Dr. Patel",
-        "days_since_last_visit": 97
+        "days_since_last_visit": 100
       },
       {
         "patient_id": 59,
@@ -656,7 +656,7 @@
         "last_visit_date": "2026-01-29",
         "last_visit_diagnosis": "Major Depressive Disorder",
         "last_visit_provider": "Dr. Baker",
-        "days_since_last_visit": 93
+        "days_since_last_visit": 96
       },
       {
         "patient_id": 61,
@@ -664,7 +664,7 @@
         "last_visit_date": "2026-02-02",
         "last_visit_diagnosis": "Panic Disorder",
         "last_visit_provider": "Dr. Murphy",
-        "days_since_last_visit": 89
+        "days_since_last_visit": 92
       },
       {
         "patient_id": 47,
@@ -672,7 +672,7 @@
         "last_visit_date": "2026-02-20",
         "last_visit_diagnosis": "Obsessive-Compulsive Disorder",
         "last_visit_provider": "Dr. Ramirez",
-        "days_since_last_visit": 71
+        "days_since_last_visit": 74
       },
       {
         "patient_id": 75,
@@ -680,7 +680,7 @@
         "last_visit_date": "2026-02-23",
         "last_visit_diagnosis": "Generalized Anxiety Disorder",
         "last_visit_provider": "Dr. Holder",
-        "days_since_last_visit": 68
+        "days_since_last_visit": 71
       },
       {
         "patient_id": 29,
@@ -688,7 +688,7 @@
         "last_visit_date": "2026-02-28",
         "last_visit_diagnosis": "Obsessive-Compulsive Disorder",
         "last_visit_provider": "Dr. Moran",
-        "days_since_last_visit": 63
+        "days_since_last_visit": 66
       },
       {
         "patient_id": 4,
@@ -696,7 +696,7 @@
         "last_visit_date": "2026-03-05",
         "last_visit_diagnosis": "Persistent Depressive Disorder",
         "last_visit_provider": "Dr. Henderson",
-        "days_since_last_visit": 58
+        "days_since_last_visit": 61
       },
       {
         "patient_id": 60,
@@ -704,7 +704,7 @@
         "last_visit_date": "2026-03-05",
         "last_visit_diagnosis": "Persistent Depressive Disorder",
         "last_visit_provider": "Dr. Castro",
-        "days_since_last_visit": 58
+        "days_since_last_visit": 61
       },
       {
         "patient_id": 66,
@@ -712,7 +712,7 @@
         "last_visit_date": "2026-03-07",
         "last_visit_diagnosis": "Generalized Anxiety Disorder",
         "last_visit_provider": "Dr. Bowers",
-        "days_since_last_visit": 56
+        "days_since_last_visit": 59
       },
       {
         "patient_id": 54,
@@ -720,14 +720,14 @@
         "last_visit_date": "2026-03-22",
         "last_visit_diagnosis": "Major Depressive Disorder",
         "last_visit_provider": "Dr. Ayers",
-        "days_since_last_visit": 41
+        "days_since_last_visit": 44
       }
     ],
     "row_count": 26,
     "summary_statistics": {
       "patient_count": 26,
-      "mean_days_since_last_visit": 184.9,
-      "median_days_since_last_visit": 158.0,
+      "mean_days_since_last_visit": 187.9,
+      "median_days_since_last_visit": 161.0,
       "diagnosis_counts_at_last_visit": {
         "Social Anxiety Disorder": 5,
         "Panic Disorder": 4,
@@ -740,29 +740,29 @@
       },
       "last_visit_provider_counts": {
         "Dr. Murphy": 2,
-        "Dr. Cortez": 1,
-        "Dr. Kelly": 1,
-        "Dr. Murillo": 1,
-        "Dr. Mccarthy": 1,
-        "Dr. Yu": 1,
-        "Dr. Brooks": 1,
-        "Dr. Hubbard": 1,
-        "Dr. Le": 1,
-        "Dr. Sawyer": 1,
-        "Dr. Mcgrath": 1,
-        "Dr. Reyes": 1,
-        "Dr. Fuller": 1,
         "Dr. Carter": 1,
-        "Dr. Davis": 1,
-        "Dr. Blair": 1,
-        "Dr. Patel": 1,
-        "Dr. Baker": 1,
-        "Dr. Ramirez": 1,
-        "Dr. Holder": 1,
-        "Dr. Moran": 1,
-        "Dr. Henderson": 1,
-        "Dr. Castro": 1,
         "Dr. Bowers": 1,
+        "Dr. Castro": 1,
+        "Dr. Henderson": 1,
+        "Dr. Moran": 1,
+        "Dr. Holder": 1,
+        "Dr. Ramirez": 1,
+        "Dr. Baker": 1,
+        "Dr. Patel": 1,
+        "Dr. Blair": 1,
+        "Dr. Davis": 1,
+        "Dr. Fuller": 1,
+        "Dr. Cortez": 1,
+        "Dr. Reyes": 1,
+        "Dr. Mcgrath": 1,
+        "Dr. Sawyer": 1,
+        "Dr. Le": 1,
+        "Dr. Hubbard": 1,
+        "Dr. Brooks": 1,
+        "Dr. Yu": 1,
+        "Dr. Mccarthy": 1,
+        "Dr. Murillo": 1,
+        "Dr. Kelly": 1,
         "Dr. Ayers": 1
       },
       "all_lapsed_patients_share_same_last_provider": false,

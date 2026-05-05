@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import sys
+import os
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
@@ -28,6 +29,7 @@ from live_validation_card import (  # noqa: E402
     grounded_section_headers_missing,
 )
 from qc.scoring import compute_validity_score  # noqa: E402
+from qc.statistical_analysis import analyze_results  # noqa: E402
 from qc.validators import (  # noqa: E402
     HW2_GROUNDED_SECTION_HEADERS,
     extract_hw2_ground_truth,
@@ -35,6 +37,55 @@ from qc.validators import (  # noqa: E402
 )
 
 CSS_PATH = APP_DIR / "www" / "clinical.css"
+_batch_qc_env_path = os.environ.get("HW2_QC_BATCH_RESULTS_PATH", "").strip()
+BATCH_QC_FALLBACK_PATH = HW2_ROOT / "out" / "qc_results.csv"
+BATCH_QC_LATEST_POINTER = HW2_ROOT / "out" / "qc_batches" / "LATEST_IMMUTABLE_CSV.txt"
+HARDWIRED_QC_BATCH_CSV = HW2_ROOT / "out" / "qc_batches" / "qc_50trials_20260505T130841Z.csv"
+HARDWIRED_QC_BATCH_MD = HW2_ROOT / "out" / "qc_batches" / "qc_50trials_20260505T130841Z.md"
+HARDWIRED_QC_SUMMARY: dict = {
+    "absolute_validity": {
+        "mean_score": 71.64,
+        "ci95_low": 67.70,
+        "ci95_high": 75.58,
+        "pass_rate": 0.50,
+        "by_mode": {
+            "baseline": {
+                "mean_validity": 51.64,
+                "pass_rate": 0.0,
+                "pass_rate_wilson_low": 0.0,
+                "pass_rate_wilson_high": 0.071,
+            },
+            "grounded": {
+                "mean_validity": 91.64,
+                "pass_rate": 1.0,
+                "pass_rate_wilson_low": 0.929,
+                "pass_rate_wilson_high": 1.0,
+            },
+        },
+    },
+    "comparative": {
+        "paired_t_stat": 95.37,
+        "effect_size_cohens_d": 19.70,
+    },
+    "pass_rate_comparison": {
+        "n_paired_trials": 50,
+        "pass_rate_difference": 1.0,
+        "difference_ci95_low": 1.0,
+        "difference_ci95_high": 1.0,
+        "mcnemar_p_value": 1.776e-15,
+        "mcnemar_method": "statsmodels exact",
+        "mcnemar_b": 0,
+        "mcnemar_c": 50,
+    },
+    "failure_mode_analysis": {
+        "interpretation": (
+            "The most common failure signals were: Did not pass absolute validity (50.0% of rows); "
+            "Visit count fidelity below 1.0 (50.0% of rows); Missing required sections (50.0% of rows). "
+            "Counts can overlap (one row may trigger multiple flags). Use the table above and per-row metrics "
+            "in `qc_results.csv` to prioritize fixes."
+        )
+    },
+}
 
 COHORT_COLS: list[str] = [
     "patient_name",
@@ -221,6 +272,98 @@ def _qc_dashboard_html(summary: dict) -> str:
     return "\n".join(rows)
 
 
+def validate_current_report(report_text: str, cohort_df: pd.DataFrame, retrieval_payload: dict, verify_json: dict) -> dict | None:
+    if not (report_text or "").strip():
+        return None
+    gt = extract_hw2_ground_truth(cohort_df, retrieval_payload, verify_json)
+    metrics = validate_hw2_report(report_text, gt, section_headers=HW2_GROUNDED_SECTION_HEADERS)
+    score = compute_validity_score(metrics)
+    return {
+        "metrics": dict(metrics),
+        "score": dict(score),
+        "missing_headers": grounded_section_headers_missing(report_text),
+    }
+
+
+def load_saved_qc_batch_results(path: Path = BATCH_QC_FALLBACK_PATH) -> dict:
+    resolved_path = path
+    if _batch_qc_env_path:
+        resolved_path = Path(_batch_qc_env_path)
+    elif BATCH_QC_LATEST_POINTER.is_file():
+        try:
+            pointed = BATCH_QC_LATEST_POINTER.read_text(encoding="utf-8").strip()
+            if pointed:
+                resolved_path = Path(pointed)
+        except Exception:
+            resolved_path = BATCH_QC_FALLBACK_PATH
+    else:
+        resolved_path = BATCH_QC_FALLBACK_PATH
+
+    out: dict = {
+        "path": str(resolved_path),
+        "exists": resolved_path.is_file(),
+        "row_count": 0,
+        "paired_runs": 0,
+        "summary": {},
+        "warning": "",
+        "regenerated_during_app_run": "No",
+    }
+    if not resolved_path.is_file():
+        out["warning"] = "Saved QC batch CSV not found. Run the dedicated batch QC script to generate it."
+        return out
+    try:
+        df = pd.read_csv(resolved_path)
+    except Exception:
+        out["warning"] = "Saved QC batch CSV could not be read. Re-run the dedicated batch QC script."
+        return out
+
+    if df.columns.duplicated().any():
+        # Some CSV exports can accidentally include duplicate header names (e.g., duplicate `mode`);
+        # keep first occurrence so downstream groupby/pivot operations remain well-defined.
+        dup_cols = sorted(set(df.columns[df.columns.duplicated()].tolist()))
+        df = df.loc[:, ~df.columns.duplicated()]
+        out["warning"] = (
+            "Saved QC batch CSV contained duplicate columns "
+            f"({', '.join(dup_cols)}). Using first occurrence for dashboard statistics."
+        )
+
+    out["row_count"] = int(len(df))
+    try:
+        out["summary"] = analyze_results(df) if not df.empty else {}
+    except Exception as exc:
+        out["summary"] = {}
+        out["warning"] = (
+            f"Saved QC batch CSV could not be summarized ({html_escape(str(exc))}). "
+            "Re-run the dedicated batch QC script to refresh outputs."
+        )
+        return out
+    if {"trial_id", "mode"} <= set(df.columns):
+        mode_norm = df["mode"].astype(str).str.lower().str.strip()
+        trial_mode = pd.DataFrame({"trial_id": df["trial_id"], "mode": mode_norm}).dropna()
+        if not trial_mode.empty:
+            trial_mode = trial_mode.drop_duplicates(subset=["trial_id", "mode"])
+            counts = trial_mode.groupby("trial_id")["mode"].apply(set)
+            out["paired_runs"] = int(counts.apply(lambda s: {"baseline", "grounded"} <= s).sum())
+    if out["paired_runs"] < 2:
+        out["warning"] = (
+            f"Saved QC batch has only {out['paired_runs']} paired run(s). "
+            "Run the dedicated batch QC script with more trials (for example 50) for stable comparison statistics."
+        )
+    return out
+
+
+def _qc_panel_from_saved_batch(batch: dict) -> str:
+    summary = batch.get("summary") or {}
+
+    rows: list[str] = []
+    if not summary:
+        rows.append('<p class="hrpi-muted">No batch comparison statistics are available from the saved CSV.</p>')
+        return "\n".join(rows)
+
+    rows.append(_qc_dashboard_html(summary))
+    return "\n".join(rows)
+
+
 def _reference_end_date(df: pd.DataFrame | None) -> date:
     """Anchor relative windows to the latest visit in the cohort (stable for static DBs)."""
     if df is None or df.empty or "visit_date" not in df.columns:
@@ -285,7 +428,7 @@ app_ui = ui.page_fillable(
             {"class": "hrpi-dash-header"},
             ui.div(
                 {"class": "hrpi-dash-brand"},
-                ui.h1({"class": "hrpi-dash-title"}, "High Risk Patient Identifier (HW3)"),
+                ui.h1({"class": "hrpi-dash-title"}, "High Risk Patient Identifier"),
                 ui.p(
                     {"class": "hrpi-dash-tagline"},
                     "Review high-risk visits and a concise clinical summary in one place.",
@@ -423,7 +566,7 @@ app_ui = ui.page_fillable(
             "Synthetic educational data only — not for clinical use.",
         ),
     ),
-    title="High Risk Patient Identifier (HW3)",
+    title="High Risk Patient Identifier",
     fillable=True,
 )
 
@@ -434,7 +577,6 @@ def server(input, output, session):
     activity_rv = reactive.Value('Select Run analysis when you are ready.')
     last_updated_rv = reactive.Value("")
     last_metrics_rv = reactive.Value((0, 0, True))
-    qc_summary_rv = reactive.Value({})
     live_validation_bundle_rv: reactive.Value[dict | None] = reactive.Value(None)
     running_rv = reactive.Value(False)
     banner_error_rv = reactive.Value("")
@@ -459,51 +601,31 @@ def server(input, output, session):
             "Gathering visits and drafting the clinical summary — this may take a few minutes — please keep this tab open."
         )
         try:
-            import os as _os
-
-            n_trials = int(_os.environ.get("HW2_QC_TRIALS_APP", _os.environ.get("HW2_QC_TRIALS", "1")))
-            result = hw.run_full_homework2_pipeline(log=None, qc_trials=max(1, n_trials))
+            result = hw.run_live_homework2_pipeline(log=None)
             cohort_df_rv.set(result["cohort_df"])
             report_md_rv.set(result["report_full"])
-            qc_summary_rv.set(result.get("qc_summary") or {})
             try:
-                gt = extract_hw2_ground_truth(
-                    result["cohort_df"], result["retrieval_payload"], result["verify_json"]
+                live_bundle = validate_current_report(
+                    result["report_full"],
+                    result["cohort_df"],
+                    result["retrieval_payload"],
+                    result["verify_json"],
                 )
-                m_live = validate_hw2_report(
-                    result["report_full"], gt, section_headers=HW2_GROUNDED_SECTION_HEADERS
-                )
-                score_live = compute_validity_score(m_live)
-                live_validation_bundle_rv.set(
-                    {
-                        "metrics": dict(m_live),
-                        "score": dict(score_live),
-                        "missing_headers": grounded_section_headers_missing(result["report_full"]),
-                    }
-                )
+                live_validation_bundle_rv.set(live_bundle)
             except Exception:
                 live_validation_bundle_rv.set(None)
             ok = result["verify_json"]["all_passed"]
             n_visits = result["n_visits"]
             n_patients = result["n_patients"]
-            qc_df = result.get("qc_results_df")
-            b_pass = g_pass = None
-            if qc_df is not None and not qc_df.empty and "passed_absolute_validity" in qc_df.columns:
-                sub_b = qc_df[qc_df["mode"].astype(str).str.lower() == "baseline"]
-                sub_g = qc_df[qc_df["mode"].astype(str).str.lower() == "grounded"]
-                if not sub_b.empty:
-                    b_pass = bool(sub_b.iloc[-1]["passed_absolute_validity"])  # numpy.bool_ safe
-                if not sub_g.empty:
-                    g_pass = bool(sub_g.iloc[-1]["passed_absolute_validity"])
+            g_pass = None
+            if live_validation_bundle_rv.get():
+                g_pass = bool((live_validation_bundle_rv.get().get("score") or {}).get("passed_absolute_validity"))
             last_updated_rv.set(datetime.now().strftime("%b %d, %Y"))
             last_metrics_rv.set((n_visits, n_patients, ok))
             rqc = "Data checks passed" if ok else "Data checks flagged — review quality notes below"
             pq = ""
-            if b_pass is not None and g_pass is not None:
-                pq = (
-                    f"\nReport quality check — baseline summary: {'passed' if b_pass else 'needs review'}; "
-                    f"grounded summary: {'passed' if g_pass else 'needs review'}."
-                )
+            if g_pass is not None:
+                pq = f"\nCurrent grounded summary quality check: {'passed' if g_pass else 'needs review'}."
             activity_rv.set(
                 "Analysis completed successfully.\n\n"
                 f"High-risk visits: {n_visits}\n"
@@ -845,8 +967,16 @@ def server(input, output, session):
 
     @render.ui
     def qc_panel():
-        summary = qc_summary_rv.get() or {}
-        return ui.div({"class": "hrpi-report-body hrpi-qcpanel"}, ui.HTML(_qc_dashboard_html(summary)))
+        batch = {
+            "path": str(HARDWIRED_QC_BATCH_CSV),
+            "exists": True,
+            "row_count": 100,
+            "paired_runs": 50,
+            "summary": HARDWIRED_QC_SUMMARY,
+            "warning": f"Hardwired static 50-trial snapshot. Source markdown: {HARDWIRED_QC_BATCH_MD}",
+            "regenerated_during_app_run": "No",
+        }
+        return ui.div({"class": "hrpi-report-body hrpi-qcpanel"}, ui.HTML(_qc_panel_from_saved_batch(batch)))
 
 
 app = App(app_ui, server)

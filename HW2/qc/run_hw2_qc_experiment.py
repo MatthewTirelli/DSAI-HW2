@@ -10,7 +10,9 @@ from __future__ import annotations
 
 import argparse
 import os
+import shutil
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -19,6 +21,25 @@ if str(ROOT) not in sys.path:
 
 import clinical_pipeline as cp  # noqa: E402
 from qc.qc_regrade_bundle import regraded_dataframe, write_regraded_artifacts  # noqa: E402
+
+
+def _archive_batch_outputs(out_dir: Path, n_trials: int) -> tuple[Path, Path]:
+    batches_dir = out_dir / "qc_batches"
+    batches_dir.mkdir(parents=True, exist_ok=True)
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    stem = f"qc_{n_trials}trials_{stamp}"
+
+    src_csv = out_dir / "qc_results.csv"
+    src_md = out_dir / "qc_summary.md"
+    dst_csv = batches_dir / f"{stem}.csv"
+    dst_md = batches_dir / f"{stem}.md"
+    if dst_csv.exists() or dst_md.exists():
+        raise RuntimeError(f"Archive targets already exist: {dst_csv} / {dst_md}")
+    shutil.copy2(src_csv, dst_csv)
+    shutil.copy2(src_md, dst_md)
+    (batches_dir / "LATEST_IMMUTABLE_CSV.txt").write_text(str(dst_csv), encoding="utf-8")
+    (batches_dir / "LATEST_IMMUTABLE_SUMMARY.txt").write_text(str(dst_md), encoding="utf-8")
+    return dst_csv, dst_md
 
 
 def main() -> None:
@@ -68,6 +89,9 @@ def main() -> None:
     md_path = cp.OUT_DIR / "qc_summary.md"
     print(f"QC rows: {len(out['qc_results_df'])} written to {csv_path}", flush=True)
     print(f"Summary markdown: {md_path}", flush=True)
+    archived_csv, archived_md = _archive_batch_outputs(cp.OUT_DIR, max(1, args.n_trials))
+    print(f"Archived immutable CSV: {archived_csv}", flush=True)
+    print(f"Archived immutable summary: {archived_md}", flush=True)
 
 
 if __name__ == "__main__":
