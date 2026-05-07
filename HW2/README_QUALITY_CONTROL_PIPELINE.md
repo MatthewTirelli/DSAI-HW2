@@ -1,7 +1,5 @@
 # Quality Control Pipeline — Holistic Overview
 
-This document stitches together **the deterministic 50-trial QC experiment**, **the offline AI qualitative review**, and **how the dashboard uses validation** into one narrative. It aligns with the architectural flow described in [`README_QC_VALIDATION.md`](README_QC_VALIDATION.md) but adds full results, prompts, statistics, and operational detail.
-
 **Disclaimer.** All data are **synthetic / educational**. Automated metrics are **heuristic**. This is **not** clinical, diagnostic, or regulatory validation. Do not use outputs for real patient care.
 
 ---
@@ -86,29 +84,29 @@ flowchart TB
     DB[("patients.db")]
   end
 
-  subgraph agent1["Agent 1 — cohort tool"]
+  subgraph agent1["Agent 1 - cohort tool"]
     LM1[OpenAI + forced tool]
     Tool[SQL / list_phq9_elevated_with_safety_concerns]
     LM1 --> Tool
     Tool --> Cohort[Cohort DataFrame / Markdown]
   end
 
-  subgraph retrieval["Deterministic retrieval — not an LLM"]
+  subgraph retrieval["Deterministic retrieval - not an LLM"]
     R[build_cohort_retrieval_payload]
     Payload[(Structured JSON + verification)]
     R --> Payload
   end
 
-  subgraph prompts["Report generation — Agent 2"]
+  subgraph prompts["Report generation - Agent 2"]
     PA[Prompt A baseline template]
     PB[Prompt B grounded template]
-    LM2[OpenAI writer — no tools]
+    LM2[OpenAI writer - no tools]
     PA --> LM2
     PB --> LM2
     Cohort --> LM2
     Payload --> LM2
     LM2 --> RA[Report A text]
-    LM2 --> RB[Report B text — product path]
+    LM2 --> RB[Report B text - product path]
   end
 
   subgraph detqc["Deterministic QC"]
@@ -124,17 +122,17 @@ flowchart TB
   subgraph stats["Batch statistics"]
     SA[qc/statistical_analysis.py]
     CSV --> SA
-    SA --> MD[out/qc_summary.md — narrative stats]
+    SA --> MD[out/qc_summary.md - narrative stats]
   end
 
-  subgraph narrativeqc["Offline AI qualitative review — supplemental"]
+  subgraph narrativeqc["Offline AI qualitative review - supplemental"]
     AIRev[qc/run_ai_qualitative_review.py]
     CSV --> AIRev
     AIRev --> AICSV[out/ai_qualitative_review_results.csv]
     AIRev --> AIMD[out/ai_qualitative_review_summary.md]
   end
 
-  subgraph ui["Shiny — app/app.py"]
+  subgraph ui["Shiny - app/app.py"]
     Live[Live validators on current grounded report]
     Batch[Static / saved batch comparison display]
   end
